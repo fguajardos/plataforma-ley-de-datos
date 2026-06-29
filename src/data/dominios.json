@@ -1,0 +1,754 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Gobierno y Accountability",
+    "objetivo": "Evaluar la existencia, formalización y madurez del modelo de gobierno de protección de datos personales de la organización, verificando la existencia de políticas, roles, responsabilidades, mecanismos de supervisión, accountability y participación de la Alta Dirección en la gestión de datos personales. El objetivo es determinar si la organización dispone de una estructura organizacional formal que permita demostrar cumplimiento permanente frente a la Ley N° 21.719.",
+    "evidenciasMinimas": [
+      "Política de Protección de Datos Personales",
+      "Política de Privacidad",
+      "Modelo de Gobierno de Datos",
+      "Organigrama corporativo",
+      "Matriz de roles y responsabilidades",
+      "Actas de Comité",
+      "KPI de cumplimiento",
+      "Informes de Auditoría",
+      "Roadmap de privacidad",
+      "Designación formal del Responsable LPDP",
+      "Presentaciones al Directorio o Gerencia",
+      "Procedimientos asociados"
+    ],
+    "riesgos": [
+      "Ausencia de gobierno formal de privacidad",
+      "Falta de liderazgo ejecutivo",
+      "Ausencia de responsables definidos",
+      "Falta de accountability organizacional",
+      "Inexistencia de supervisión y monitoreo",
+      "Falta de presupuesto",
+      "Falta de participación de la Alta Dirección",
+      "Incumplimiento regulatorio por ausencia de gobernanza"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe una Política Corporativa de Protección de Datos Personales aprobada y vigente?",
+        "descripcion": "Verificar si la organización dispone de una política formal, aprobada por la organización, que establezca lineamientos, principios, responsabilidades y reglas para el tratamiento de datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe una Política de Privacidad publicada para clientes, trabajadores y terceros?",
+        "descripcion": "Determinar si la organización informa formalmente a los titulares cómo recopila, utiliza, almacena y protege sus datos personales."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Existe un Responsable formal de Protección de Datos Personales designado?",
+        "descripcion": "Verificar si la organización ha designado oficialmente a una persona o función responsable de coordinar y supervisar el cumplimiento de la Ley N° 21.719."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existe un Comité de Privacidad o Protección de Datos formalmente constituido?",
+        "descripcion": "Determinar si existe una instancia formal y periódica que supervise, coordine y tome decisiones respecto de la gestión de datos personales."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existen roles y responsabilidades formalizados respecto del tratamiento de datos personales?",
+        "descripcion": "Verificar si las responsabilidades asociadas al tratamiento de datos personales se encuentran claramente definidas, documentadas y comunicadas dentro de la organización."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Existe un Modelo de Gobierno de Datos Personales documentado?",
+        "descripcion": "Determinar si la organización dispone de una estructura formal que establezca cómo se gobiernan, administran y supervisan los datos personales dentro de la organización."
+      },
+      {
+        "orden": 7,
+        "texto": "¿La Alta Dirección revisa periódicamente el estado de cumplimiento LPDP?",
+        "descripcion": "Verificar el nivel de involucramiento y supervisión que ejerce la Alta Dirección respecto del cumplimiento de la Ley N° 21.719."
+      },
+      {
+        "orden": 8,
+        "texto": "¿Existen KPI (Key Performance Indicators / Indicadores Clave de Desempeño) asociados al cumplimiento LPDP?",
+        "descripcion": "Determinar si la organización mide y monitorea el desempeño de su programa de privacidad mediante indicadores formales."
+      },
+      {
+        "orden": 9,
+        "texto": "¿Existen auditorías periódicas sobre privacidad y protección de datos?",
+        "descripcion": "Verificar si la organización revisa periódicamente el cumplimiento de las políticas, procedimientos y controles asociados a protección de datos personales."
+      },
+      {
+        "orden": 10,
+        "texto": "¿Existe presupuesto asignado para actividades de cumplimiento LPDP?",
+        "descripcion": "Determinar si la organización dispone de recursos financieros específicos para implementar, operar y mantener el programa de cumplimiento de protección de datos personales."
+      },
+      {
+        "orden": 11,
+        "texto": "¿Existe un roadmap formal para el cumplimiento de la Ley N° 21.719?",
+        "descripcion": "Verificar si la organización cuenta con un plan estructurado de iniciativas, actividades, responsables y plazos orientados al cumplimiento normativo."
+      },
+      {
+        "orden": 12,
+        "texto": "¿Se reportan periódicamente riesgos LPDP a la Gerencia o Directorio?",
+        "descripcion": "Determinar si los riesgos asociados a privacidad y protección de datos son informados formalmente a los niveles ejecutivos de la organización."
+      },
+      {
+        "orden": 13,
+        "texto": "¿Existe un proceso formal para revisar y actualizar políticas de privacidad?",
+        "descripcion": "Verificar si las políticas relacionadas con protección de datos son revisadas y actualizadas periódicamente conforme a cambios regulatorios, tecnológicos u organizacionales."
+      },
+      {
+        "orden": 14,
+        "texto": "¿Existen responsables designados en cada área para la gestión de datos personales?",
+        "descripcion": "Determinar si cada área de la organización cuenta con responsables o puntos focales encargados de coordinar y supervisar las actividades relacionadas con datos personales."
+      },
+      {
+        "orden": 15,
+        "texto": "¿Existe un mecanismo formal de escalamiento de incidentes relacionados con datos personales?",
+        "descripcion": "Verificar si la organización dispone de procedimientos y canales formales para reportar, escalar y gestionar incidentes asociados a datos personales."
+      },
+      {
+        "orden": 16,
+        "texto": "¿Existen indicadores que permitan monitorear el desempeño del modelo de privacidad?",
+        "descripcion": "Determinar si la organización cuenta con métricas que permitan evaluar la efectividad, evolución y madurez del modelo de privacidad implementado."
+      }
+    ]
+  },
+  {
+    "orden": 2,
+    "nombre": "Registro de Actividades de Tratamiento (RAT)",
+    "objetivo": "Identificar, caracterizar y documentar todos los tratamientos de datos personales realizados por la organización, permitiendo comprender el ciclo de vida completo de los datos personales dentro de la organización. El objetivo es determinar: Qué datos personales recopila la organización. Dónde se almacenan. Quién los utiliza. Cómo circulan entre procesos, sistemas y terceros. Cuál es la finalidad del tratamiento. Cuál es la base legal que legitima el tratamiento. Cuáles son los riesgos asociados al tratamiento de datos personales. La información recopilada permitirá construir el Registro de Actividades de Tratamiento (RAT), el Inventario de Datos Personales y el Mapa de Flujos de Datos exigidos por la Ley N° 21.719.",
+    "evidenciasMinimas": [
+      "Diagramas de procesos",
+      "BPMN o flujos operacionales",
+      "Arquitectura de sistemas",
+      "Inventario de aplicaciones",
+      "Inventario de bases de datos",
+      "Formularios físicos y digitales",
+      "Interfaces y APIs",
+      "Contratos con terceros",
+      "Integraciones entre sistemas",
+      "Inventario de servicios cloud",
+      "Catálogo de datos",
+      "CRM",
+      "ERP",
+      "SharePoint",
+      "Archivos Excel",
+      "Formularios web",
+      "Repositorios documentales"
+    ],
+    "riesgos": [
+      "Desconocimiento de tratamientos de datos personales",
+      "Datos almacenados fuera de sistemas corporativos",
+      "Existencia de bases paralelas",
+      "Ausencia de trazabilidad",
+      "Transferencias internacionales no controladas",
+      "Ausencia de base legal",
+      "Integraciones no documentadas",
+      "Terceros no controlados",
+      "Uso indebido de datos personales",
+      "Exposición de datos sensibles"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe un inventario formal de todos los tratamientos de datos personales?",
+        "descripcion": "Verificar si la organización dispone de un registro centralizado y actualizado de todos los tratamientos de datos personales realizados por la organización."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Se encuentran identificados todos los sistemas que almacenan datos personales?",
+        "descripcion": "Determinar si la organización conoce y mantiene documentados todos los sistemas que almacenan datos personales."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Se encuentran identificadas las bases de datos físicas y digitales?",
+        "descripcion": "Verificar si existe un catastro de repositorios físicos y digitales que contengan datos personales."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existen datos personales almacenados en planillas Excel u otros medios locales?",
+        "descripcion": "Identificar la existencia de bases paralelas o almacenamiento fuera de sistemas corporativos."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Se encuentran identificados los titulares de datos?",
+        "descripcion": "Determinar si la organización tiene identificadas las categorías de titulares cuyos datos son tratados."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Los datos personales se clasifican según criticidad o sensibilidad?",
+        "descripcion": "Verificar si existe clasificación formal de los datos personales según su criticidad."
+      },
+      {
+        "orden": 7,
+        "texto": "¿Se encuentran identificados los flujos de datos entre sistemas?",
+        "descripcion": "Verificar si la organización conoce cómo circulan los datos personales dentro de la organización."
+      },
+      {
+        "orden": 8,
+        "texto": "¿Se encuentran identificadas las transferencias internacionales de datos?",
+        "descripcion": "Determinar si la organización conoce y controla las transferencias de datos fuera de Chile."
+      },
+      {
+        "orden": 9,
+        "texto": "¿Existen datos personales almacenados en servicios cloud?",
+        "descripcion": "Identificar el uso de servicios cloud para almacenar o procesar datos personales."
+      },
+      {
+        "orden": 10,
+        "texto": "¿Se encuentran identificadas todas las integraciones con terceros?",
+        "descripcion": "Verificar si la organización conoce todas las interfaces e intercambios de datos con terceros."
+      },
+      {
+        "orden": 11,
+        "texto": "¿Se encuentra documentada la finalidad de cada tratamiento?",
+        "descripcion": "Verificar si cada tratamiento tiene claramente definida y documentada su finalidad."
+      },
+      {
+        "orden": 12,
+        "texto": "¿Se encuentra identificada la base legal aplicable a cada tratamiento?",
+        "descripcion": "Determinar si cada tratamiento dispone de una base legal válida conforme a la Ley N° 21.719."
+      }
+    ]
+  },
+  {
+    "orden": 3,
+    "nombre": "Bases Legales y Consentimiento",
+    "objetivo": "Evaluar si la organización dispone de fundamentos jurídicos válidos para el tratamiento de datos personales y si cuenta con mecanismos adecuados para obtener, registrar, administrar, revocar y demostrar el consentimiento de los titulares, cuando éste sea requerido por la Ley N° 21.719. El objetivo es determinar: Si cada tratamiento de datos personales posee una base legal válida. Si la organización informa adecuadamente a los titulares sobre el tratamiento de sus datos. Si existen mecanismos formales para la obtención y gestión del consentimiento. Si la organización puede demostrar el consentimiento ante una eventual fiscalización. Si los titulares pueden ejercer adecuadamente sus derechos respecto del consentimiento otorgado. La información recopilada permitirá evaluar el cumplimiento del principio de licitud, transparencia y accountability exigidos por la Ley N° 21.719.",
+    "evidenciasMinimas": [
+      "Formularios físicos y digitales",
+      "Contratos con clientes",
+      "Contratos laborales",
+      "Contratos con proveedores",
+      "Términos y condiciones",
+      "Políticas de privacidad",
+      "Cláusulas de consentimiento",
+      "Sitios web y landing pages",
+      "Formularios CRM",
+      "Registros de consentimiento",
+      "Logs de sistemas",
+      "Procedimientos de revocación",
+      "Procedimientos de atención de titulares",
+      "Comunicaciones comerciales",
+      "Bases legales documentadas por tratamiento"
+    ],
+    "riesgos": [
+      "Tratamientos sin base legal válida",
+      "Consentimientos inexistentes o insuficientes",
+      "Falta de trazabilidad del consentimiento",
+      "Cláusulas de privacidad desactualizadas",
+      "Incapacidad para demostrar consentimiento",
+      "Uso de datos personales para finalidades no informadas",
+      "Revocación de consentimiento no implementada",
+      "Incumplimiento del principio de licitud y transparencia"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Se encuentra documentada la finalidad para cada tratamiento de datos personales?",
+        "descripcion": "Verificar si la organización ha definido y documentado claramente el propósito específico para el cual utiliza los datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe una base legal identificada para cada tratamiento?",
+        "descripcion": "Determinar si cada tratamiento de datos personales cuenta con un fundamento jurídico válido conforme a la Ley N° 21.719."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Los formularios incluyen cláusulas de privacidad actualizadas?",
+        "descripcion": "Verificar si los formularios utilizados por la organización informan adecuadamente a los titulares sobre el tratamiento de sus datos personales."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Se obtiene consentimiento cuando corresponde?",
+        "descripcion": "Determinar si la organización solicita y obtiene consentimiento en aquellos tratamientos donde la ley así lo exige."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existe trazabilidad del consentimiento otorgado?",
+        "descripcion": "Verificar si la organización puede identificar cuándo, cómo y por qué medio fue otorgado el consentimiento por el titular."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Los titulares pueden revocar el consentimiento fácilmente?",
+        "descripcion": "Determinar si los titulares cuentan con mecanismos simples y accesibles para retirar el consentimiento previamente otorgado."
+      },
+      {
+        "orden": 7,
+        "texto": "¿Existen mecanismos para acreditar el consentimiento ante una fiscalización?",
+        "descripcion": "Verificar si la organización puede demostrar documentalmente el consentimiento otorgado frente a una auditoría o fiscalización."
+      }
+    ]
+  },
+  {
+    "orden": 4,
+    "nombre": "Derechos de los Titulares",
+    "objetivo": "Evaluar la capacidad de la organización para gestionar, responder y demostrar el cumplimiento de los derechos de los titulares de datos personales establecidos en la Ley N° 21.719. El objetivo es determinar si la organización dispone de procedimientos, canales, controles y mecanismos formales que permitan a los titulares ejercer adecuadamente sus derechos sobre sus datos personales. La información recopilada permitirá evaluar el nivel de cumplimiento de la organización respecto de los derechos de: Acceso. Rectificación. Supresión o eliminación. Oposición. Portabilidad. Bloqueo o suspensión temporal del tratamiento. Revocación del consentimiento.",
+    "evidenciasMinimas": [
+      "Procedimientos de atención de titulares",
+      "Políticas de privacidad",
+      "Procedimientos internos",
+      "Registros históricos de solicitudes",
+      "Formularios de atención",
+      "Tickets o casos gestionados",
+      "Correos electrónicos",
+      "Flujos de atención",
+      "Reportes de cumplimiento",
+      "SLA (Service Level Agreement / Acuerdo de Nivel de Servicio)",
+      "Manuales operacionales",
+      "Reportes de seguimiento",
+      "Evidencias de respuesta a titulares"
+    ],
+    "riesgos": [
+      "Inexistencia de canales para ejercer derechos",
+      "Incumplimiento de plazos legales",
+      "Ausencia de procedimientos formales",
+      "Imposibilidad de demostrar la atención de solicitudes",
+      "Falta de trazabilidad",
+      "Atención inconsistente entre áreas",
+      "Riesgo de sanciones regulatorias",
+      "Incumplimiento de los derechos de los titulares"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe un procedimiento formal para atender solicitudes de titulares?",
+        "descripcion": "Verificar si la organización dispone de un procedimiento formal, documentado y conocido para gestionar solicitudes de titulares."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe un canal habilitado para ejercer derechos?",
+        "descripcion": "Determinar si los titulares cuentan con canales claros y accesibles para ejercer sus derechos."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Se registran las solicitudes recibidas?",
+        "descripcion": "Verificar si la organización mantiene un registro formal de todas las solicitudes recibidas."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existen tiempos de respuesta formalmente definidos?",
+        "descripcion": "Determinar si existen plazos internos establecidos para responder solicitudes."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existe trazabilidad de las respuestas entregadas?",
+        "descripcion": "Verificar si la organización puede demostrar el proceso completo de atención y respuesta."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Se monitorea el cumplimiento de los plazos legales?",
+        "descripcion": "Determinar si la organización controla y monitorea el cumplimiento de los tiempos exigidos por la ley."
+      },
+      {
+        "orden": 7,
+        "texto": "¿Existe un procedimiento formal para ejercer el derecho de acceso?",
+        "descripcion": "Verificar si existe un mecanismo formal para que los titulares conozcan qué datos posee la organización sobre ellos."
+      },
+      {
+        "orden": 8,
+        "texto": "¿Existe un procedimiento formal para ejercer el derecho de rectificación?",
+        "descripcion": "Determinar si los titulares pueden solicitar la corrección de información incorrecta o desactualizada."
+      },
+      {
+        "orden": 9,
+        "texto": "¿Existe un procedimiento formal para ejercer el derecho de eliminación o supresión?",
+        "descripcion": "Verificar si los titulares pueden solicitar la eliminación de sus datos cuando corresponda."
+      },
+      {
+        "orden": 10,
+        "texto": "¿Existe un procedimiento formal para ejercer el derecho de oposición?",
+        "descripcion": "Determinar si los titulares pueden oponerse a determinados tratamientos de datos personales."
+      },
+      {
+        "orden": 11,
+        "texto": "¿Existe un procedimiento formal para ejercer el derecho de portabilidad?",
+        "descripcion": "Verificar si la organización dispone de mecanismos para entregar los datos personales en formato estructurado cuando corresponda."
+      },
+      {
+        "orden": 12,
+        "texto": "¿Existe un procedimiento formal para suspender temporalmente el tratamiento de datos personales?",
+        "descripcion": "Determinar si la organización puede suspender temporalmente el tratamiento de datos cuando la ley lo requiera."
+      }
+    ]
+  },
+  {
+    "orden": 5,
+    "nombre": "Seguridad de la Información",
+    "objetivo": "Evaluar la existencia, formalización y efectividad de los controles de seguridad de la información implementados por la organización para proteger los datos personales frente a accesos no autorizados, pérdida, alteración, destrucción, divulgación o tratamiento indebido. El objetivo es determinar si la organización dispone de controles técnicos y organizacionales adecuados para garantizar la confidencialidad, integridad, disponibilidad y resiliencia de los datos personales, conforme a las exigencias de la Ley N° 21.719. La información recopilada permitirá evaluar el nivel de madurez de la organización en materia de ciberseguridad y protección de datos personales.",
+    "evidenciasMinimas": [
+      "Política de Seguridad de la Información",
+      "Política de Control de Accesos",
+      "Procedimientos de Gestión de Usuarios",
+      "Procedimientos de Gestión de Vulnerabilidades",
+      "Matrices de Segregación de Funciones",
+      "Reportes de revisión de accesos",
+      "Configuraciones de MFA",
+      "Reportes de respaldo y recuperación",
+      "Informes de pruebas de restauración",
+      "Informes de vulnerabilidades",
+      "Informes de auditoría",
+      "Diagramas de arquitectura de seguridad",
+      "Configuraciones de cifrado",
+      "Dashboards de monitoreo",
+      "Registros de logs",
+      "Procedimientos de gestión de incidentes"
+    ],
+    "riesgos": [
+      "Acceso no autorizado a datos personales",
+      "Usuarios compartidos sin trazabilidad",
+      "Ausencia de autenticación multifactor",
+      "Falta de cifrado de información sensible",
+      "Pérdida o corrupción de información",
+      "Vulnerabilidades no gestionadas",
+      "Falta de segregación de funciones",
+      "Imposibilidad de reconstruir eventos de seguridad",
+      "Incumplimiento de requisitos regulatorios de seguridad"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe una Política de Seguridad de la Información vigente?",
+        "descripcion": "Verificar si la organización dispone de una política formal que establezca lineamientos y controles de seguridad de la información."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe segregación de funciones y accesos?",
+        "descripcion": "Determinar si las responsabilidades y accesos a sistemas se encuentran separados adecuadamente para evitar conflictos o accesos indebidos."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Existen usuarios compartidos en sistemas críticos?",
+        "descripcion": "Identificar la existencia de cuentas genéricas o compartidas que dificulten la trazabilidad y accountability."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Los sistemas críticos cuentan con MFA?",
+        "descripcion": "Verificar si los sistemas que almacenan datos personales utilizan autenticación multifactor para reforzar la seguridad de acceso."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existen mecanismos de cifrado de información?",
+        "descripcion": "Determinar si los datos personales se encuentran protegidos mediante técnicas de cifrado durante su almacenamiento y transmisión."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Se registran y monitorean logs de acceso?",
+        "descripcion": "Verificar si la organización registra y monitorea las actividades realizadas por los usuarios sobre los sistemas y datos personales."
+      },
+      {
+        "orden": 7,
+        "texto": "¿Existen respaldos periódicos de la información?",
+        "descripcion": "Determinar si la organización realiza copias de seguridad periódicas y controladas de la información crítica."
+      },
+      {
+        "orden": 8,
+        "texto": "¿Se realizan revisiones periódicas de accesos?",
+        "descripcion": "Verificar si la organización revisa regularmente los permisos y accesos otorgados a usuarios y terceros."
+      },
+      {
+        "orden": 9,
+        "texto": "¿Existe un proceso formal de gestión de vulnerabilidades?",
+        "descripcion": "Determinar si la organización identifica, evalúa, corrige y monitorea vulnerabilidades de seguridad de manera sistemática."
+      }
+    ]
+  },
+  {
+    "orden": 6,
+    "nombre": "Tecnología y Ciberseguridad",
+    "objetivo": "Evaluar la arquitectura tecnológica y las capacidades de ciberseguridad implementadas por la organización para soportar el tratamiento seguro, confiable y trazable de los datos personales, asegurando la protección frente a amenazas internas y externas. El objetivo es determinar si la organización dispone de una infraestructura tecnológica y controles de ciberseguridad adecuados para proteger los datos personales durante todo su ciclo de vida, conforme a los requerimientos establecidos por la Ley N° 21.719. La información recopilada permitirá identificar brechas tecnológicas, riesgos de exposición de datos y oportunidades de fortalecimiento de la arquitectura de seguridad.",
+    "evidenciasMinimas": [
+      "Inventario de aplicaciones",
+      "Arquitectura tecnológica",
+      "Diagramas de integración",
+      "Inventario de APIs",
+      "Diagramas de infraestructura",
+      "Inventario de activos tecnológicos",
+      "Inventario de servicios cloud",
+      "Matriz de integraciones",
+      "Inventario de servidores",
+      "Reportes SIEM",
+      "Configuración DLP",
+      "Configuración EDR",
+      "Informes de pruebas de recuperación",
+      "Inventario de respaldos",
+      "Documentación de plataformas SaaS",
+      "Diagramas de red"
+    ],
+    "riesgos": [
+      "Desconocimiento del ecosistema tecnológico",
+      "Aplicaciones no inventariadas",
+      "Integraciones no documentadas",
+      "APIs sin control de seguridad",
+      "Falta de monitoreo centralizado",
+      "Exfiltración de datos personales",
+      "Ausencia de protección sobre endpoints",
+      "Recuperación inefectiva ante incidentes",
+      "Exposición de datos en plataformas cloud",
+      "Incumplimiento de requisitos regulatorios de seguridad"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe un inventario actualizado de aplicaciones?",
+        "descripcion": "Verificar si la organización dispone de un inventario completo y actualizado de todas las aplicaciones que almacenan o procesan datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe arquitectura tecnológica actualizada?",
+        "descripcion": "Determinar si la organización mantiene documentación actualizada sobre su arquitectura tecnológica y componentes asociados."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Se encuentran documentadas las integraciones entre sistemas?",
+        "descripcion": "Verificar si las conexiones e intercambios de información entre sistemas están formalmente documentados."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Se encuentran identificadas todas las API que intercambian datos personales?",
+        "descripcion": "Determinar si la organización conoce y controla las interfaces que intercambian datos personales entre aplicaciones internas y externas."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existe monitoreo centralizado mediante herramientas SIEM?",
+        "descripcion": "Verificar si la organización centraliza y analiza eventos de seguridad para detectar amenazas y anomalías."
+      },
+      {
+        "orden": 6,
+        "texto": "¿Existe una solución DLP?",
+        "descripcion": "Determinar si la organización cuenta con herramientas para prevenir la pérdida, fuga o divulgación no autorizada de datos personales."
+      },
+      {
+        "orden": 7,
+        "texto": "¿Existe protección EDR en estaciones de trabajo y servidores?",
+        "descripcion": "Verificar si los dispositivos y servidores cuentan con capacidades avanzadas de detección y respuesta ante amenazas."
+      },
+      {
+        "orden": 8,
+        "texto": "¿Se realizan pruebas periódicas de recuperación de respaldos?",
+        "descripcion": "Determinar si la organización valida regularmente la capacidad de recuperar la información respaldada ante incidentes o desastres."
+      }
+    ]
+  },
+  {
+    "orden": 7,
+    "nombre": "Gestión de Terceros",
+    "objetivo": "Evaluar la capacidad de la organización para identificar, gestionar, supervisar y controlar a todos los terceros que acceden, almacenan, procesan o transfieren datos personales en representación de la organización. El objetivo es determinar si la organización dispone de mecanismos formales para administrar los riesgos asociados a proveedores, concesionarios, filiales, servicios cloud, plataformas SaaS (Software as a Service / Software como Servicio) y demás terceros que participan en el tratamiento de datos personales. La información recopilada permitirá evaluar el nivel de cumplimiento de la organización respecto del principio de responsabilidad demostrable (accountability) y la gestión de riesgos asociados a terceros.",
+    "evidenciasMinimas": [
+      "Inventario de proveedores",
+      "Inventario de terceros que tratan datos personales",
+      "Contratos con proveedores",
+      "Contratos con concesionarios",
+      "Acuerdos de confidencialidad (NDA - Non-Disclosure Agreement / Acuerdo de Confidencialidad)",
+      "DPA (Data Processing Agreement / Acuerdo de Tratamiento de Datos)",
+      "Contratos de servicios cloud",
+      "Contratos SaaS",
+      "Evaluaciones de proveedores",
+      "Due diligence de seguridad",
+      "Matriz de riesgos de terceros",
+      "Inventario de transferencias internacionales",
+      "Reportes de auditoría a proveedores"
+    ],
+    "riesgos": [
+      "Terceros no identificados que acceden a datos personales",
+      "Contratos sin cláusulas de protección de datos",
+      "Ausencia de controles sobre proveedores críticos",
+      "Transferencias internacionales no controladas",
+      "Uso de servicios SaaS no autorizados",
+      "Exposición de datos personales por terceros",
+      "Incumplimiento regulatorio por parte de proveedores",
+      "Dependencia excesiva de terceros sin supervisión"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Se encuentran identificados todos los terceros que acceden a datos personales?",
+        "descripcion": "Verificar si la organización dispone de un inventario completo y actualizado de todos los terceros que acceden, almacenan o procesan datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existen contratos con cláusulas de protección de datos personales?",
+        "descripcion": "Determinar si los contratos suscritos con terceros incorporan obligaciones específicas de protección de datos personales y confidencialidad."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Se evalúan periódicamente las medidas de seguridad de terceros?",
+        "descripcion": "Verificar si la organización revisa y evalúa regularmente las medidas de seguridad implementadas por sus proveedores y terceros críticos."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existen transferencias internacionales de datos personales?",
+        "descripcion": "Determinar si la organización transfiere datos personales fuera de Chile y si dichas transferencias se encuentran identificadas y controladas."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Se encuentran identificados los servicios SaaS utilizados por la organización?",
+        "descripcion": "Verificar si la organización conoce y administra todos los servicios SaaS utilizados para almacenar o procesar datos personales."
+      }
+    ]
+  },
+  {
+    "orden": 8,
+    "nombre": "Gestión de Incidentes",
+    "objetivo": "Evaluar la capacidad de la organización para identificar, registrar, contener, gestionar, investigar, escalar y responder oportunamente a incidentes de seguridad que puedan comprometer datos personales, asegurando el cumplimiento de las obligaciones establecidas en la Ley N° 21.719. El objetivo es determinar si la organización dispone de procedimientos, roles, mecanismos de coordinación y capacidades de respuesta adecuadas para minimizar el impacto de incidentes de seguridad relacionados con datos personales. La información recopilada permitirá evaluar el nivel de preparación de la organización frente a eventos tales como: Acceso no autorizado a datos personales. Pérdida o fuga de información. Ransomware. Malware. Phishing. Divulgación accidental de datos. Errores humanos. Incidentes asociados a terceros o proveedores.",
+    "evidenciasMinimas": [
+      "Procedimiento de Gestión de Incidentes",
+      "Política de Seguridad de la Información",
+      "Plan de Respuesta a Incidentes",
+      "Registro histórico de incidentes",
+      "Matriz de escalamiento",
+      "Organigrama del Comité de Respuesta a Incidentes",
+      "Procedimiento de notificación",
+      "Reportes de incidentes",
+      "Informes post incidente",
+      "Lecciones aprendidas",
+      "Plan de Continuidad Operacional",
+      "Plan de Recuperación ante Desastres",
+      "Evidencias de simulacros",
+      "Informes de auditoría"
+    ],
+    "riesgos": [
+      "Incapacidad para responder oportunamente a incidentes",
+      "Falta de notificación a titulares o autoridades",
+      "Ausencia de trazabilidad de incidentes",
+      "Demoras en la contención y recuperación",
+      "Falta de coordinación entre áreas",
+      "Ausencia de pruebas o simulacros",
+      "Exposición prolongada de datos personales",
+      "Incumplimiento regulatorio frente a brechas de seguridad"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe un procedimiento formal de gestión de incidentes de seguridad?",
+        "descripcion": "Verificar si la organización dispone de un procedimiento documentado para identificar, registrar, contener, investigar y resolver incidentes de seguridad."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Existe un Comité de Respuesta a Incidentes formalmente constituido?",
+        "descripcion": "Determinar si existe una instancia formal y multidisciplinaria encargada de coordinar la respuesta frente a incidentes relevantes."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Se registran los incidentes relacionados con datos personales?",
+        "descripcion": "Verificar si la organización mantiene un registro formal y trazable de incidentes que involucren datos personales."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existe un procedimiento de notificación a titulares y autoridades competentes?",
+        "descripcion": "Determinar si la organización dispone de mecanismos formales para comunicar oportunamente incidentes que afecten datos personales."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Se realizan simulaciones o ejercicios de respuesta a incidentes?",
+        "descripcion": "Verificar si la organización prueba periódicamente su capacidad de respuesta mediante simulacros o ejercicios controlados."
+      }
+    ]
+  },
+  {
+    "orden": 9,
+    "nombre": "Retención y Eliminación de Datos",
+    "objetivo": "Evaluar la capacidad de la organización para definir, administrar, controlar y demostrar el cumplimiento de las políticas y procedimientos asociados a la conservación, retención y eliminación de datos personales durante todo su ciclo de vida. El objetivo es determinar si la organización dispone de criterios formales para conservar los datos personales únicamente durante el tiempo necesario para cumplir las finalidades declaradas, obligaciones legales, contractuales o regulatorias, eliminando oportunamente aquellos datos que hayan perdido su finalidad o hayan excedido sus plazos de conservación. La información recopilada permitirá evaluar el cumplimiento de los principios de finalidad, proporcionalidad y limitación del plazo de conservación establecidos por la Ley N° 21.719.",
+    "evidenciasMinimas": [
+      "Política de Retención de Datos",
+      "Política de Gestión Documental",
+      "Tabla de Retención Documental",
+      "Procedimientos de eliminación de información",
+      "Procedimientos de destrucción física",
+      "Procedimientos de destrucción lógica",
+      "Inventario de repositorios documentales",
+      "Configuraciones de sistemas",
+      "Registros de eliminación",
+      "Evidencias de destrucción",
+      "Contratos con proveedores de destrucción documental",
+      "Reportes de auditoría",
+      "Registros históricos de eliminación"
+    ],
+    "riesgos": [
+      "Conservación excesiva de datos personales",
+      "Incumplimiento del principio de finalidad",
+      "Datos obsoletos almacenados indefinidamente",
+      "Ausencia de eliminación segura",
+      "Imposibilidad de demostrar la eliminación de información",
+      "Exposición innecesaria de datos personales",
+      "Incremento del riesgo ante incidentes de seguridad",
+      "Incumplimiento regulatorio por retención indebida"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe una Política de Retención de Datos formal?",
+        "descripcion": "Verificar si la organización dispone de una política documentada que establezca criterios para conservar y eliminar datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Se encuentran definidos plazos de conservación para cada tipo de dato?",
+        "descripcion": "Determinar si la organización ha establecido períodos de conservación específicos según la naturaleza y finalidad de los datos personales."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Existen mecanismos formales de eliminación de datos?",
+        "descripcion": "Verificar si existen procedimientos y controles para eliminar datos personales de manera segura y controlada."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Se eliminan periódicamente datos obsoletos?",
+        "descripcion": "Determinar si la organización ejecuta procesos periódicos para eliminar datos que ya no son necesarios o cuya finalidad ha expirado."
+      },
+      {
+        "orden": 5,
+        "texto": "¿Existe trazabilidad de la eliminación realizada?",
+        "descripcion": "Verificar si la organización puede demostrar cuándo, cómo y quién eliminó datos personales."
+      }
+    ]
+  },
+  {
+    "orden": 10,
+    "nombre": "Cultura y Capacitación",
+    "objetivo": "Evaluar el nivel de cultura organizacional, concientización y capacitación existente en la organización respecto de la protección de datos personales, con el propósito de determinar si los colaboradores conocen sus responsabilidades y actúan conforme a los principios establecidos por la Ley N° 21.719. El objetivo es determinar si la organización dispone de un programa formal, permanente y medible de capacitación y sensibilización que permita fortalecer la cultura de privacidad y reducir los riesgos asociados a errores humanos, uso indebido de información y brechas de seguridad. La información recopilada permitirá evaluar el nivel de madurez cultural de la organización respecto de la protección de datos personales.",
+    "evidenciasMinimas": [
+      "Plan anual de capacitación",
+      "Programa de capacitación en privacidad",
+      "Registros de asistencia",
+      "Materiales de capacitación",
+      "Cursos e-learning",
+      "Presentaciones",
+      "Campañas comunicacionales",
+      "Evidencias de difusión interna",
+      "Indicadores de capacitación",
+      "Resultados de evaluaciones",
+      "Reportes de participación",
+      "Políticas corporativas comunicadas",
+      "Registro de campañas de concientización"
+    ],
+    "riesgos": [
+      "Bajo nivel de conocimiento de la Ley N° 21.719",
+      "Ausencia de cultura organizacional en privacidad",
+      "Errores humanos en el tratamiento de datos personales",
+      "Uso indebido de información",
+      "Falta de sensibilización de colaboradores",
+      "Incumplimiento normativo por desconocimiento",
+      "Ausencia de formación en áreas críticas",
+      "Incremento de incidentes de seguridad asociados a personas"
+    ],
+    "preguntas": [
+      {
+        "orden": 1,
+        "texto": "¿Existe un programa formal de capacitación en privacidad y protección de datos personales?",
+        "descripcion": "Verificar si la organización dispone de un programa estructurado, documentado y permanente de capacitación en materias de privacidad y protección de datos personales."
+      },
+      {
+        "orden": 2,
+        "texto": "¿Los trabajadores reciben capacitación periódica sobre privacidad y protección de datos?",
+        "descripcion": "Determinar si los colaboradores reciben formación periódica que les permita comprender sus responsabilidades respecto del tratamiento de datos personales."
+      },
+      {
+        "orden": 3,
+        "texto": "¿Las áreas críticas reciben formación especializada en protección de datos personales?",
+        "descripcion": "Verificar si las áreas con mayor exposición a datos personales reciben capacitación específica acorde a sus riesgos y responsabilidades."
+      },
+      {
+        "orden": 4,
+        "texto": "¿Existen campañas de concientización organizacional relacionadas con privacidad y seguridad de la información?",
+        "descripcion": "Determinar si la organización desarrolla actividades permanentes de sensibilización orientadas a fortalecer la cultura de privacidad dentro de la organización."
+      }
+    ]
+  }
+]

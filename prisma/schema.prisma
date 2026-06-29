@@ -1,0 +1,226 @@
+// Procesos360 LPDP — esquema de datos
+// SQLite en desarrollo; portable a PostgreSQL (no se usan enums nativos ni arrays).
+// Los campos "enum-like" se almacenan como String y se validan en la capa de aplicación
+// (ver src/lib/constants.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (Supabase: puerto 6543, pgbouncer)
+  directUrl = env("DIRECT_URL") // directo (Supabase: puerto 5432) para migraciones
+}
+
+// ───────────────────────── Tenant / Organización ─────────────────────────
+
+model Empresa {
+  id                   String   @id @default(cuid())
+  razonSocial          String
+  rut                  String   @unique
+  nombreComercial      String?
+  industria            String?
+  tamano               String? // MICRO, PEQUENA, MEDIANA, GRANDE
+  pais                 String?  @default("Chile")
+  region               String?
+  numColaboradores     Int?
+  sitioWeb             String?
+  responsablePrincipal String?
+  correoResponsable    String?
+  telefono             String?
+  activa               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  areas        Area[]
+  usuarios     User[]
+  diagnosticos Diagnostico[]
+}
+
+model Area {
+  id                   String  @id @default(cuid())
+  empresaId            String
+  empresa              Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre               String
+  responsable          String?
+  cargo                String?
+  correo               String?
+  participaDiagnostico Boolean @default(true)
+  trataDatos           Boolean @default(false)
+  trataDatosSensibles  Boolean @default(false)
+  usaSistemas          Boolean @default(false)
+}
+
+// ───────────────────────── Usuarios y roles ─────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  role         String // ADMIN_P360, CONSULTOR, ADMIN_EMPRESA, RESPONSABLE_DOMINIO, ALTA_DIRECCION
+  cargo        String?
+  empresaId    String? // null para staff de Procesos360
+  empresa      Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  diagnosticosConsultor Diagnostico[]        @relation("consultor")
+  dominiosAsignados     DiagnosticoDominio[] @relation("responsable")
+}
+
+// ───────────────────────── Catálogo LPDP ─────────────────────────
+
+model Dominio {
+  id                String  @id @default(cuid())
+  orden             Int     @unique
+  nombre            String
+  objetivo          String
+  evidenciasMinimas String // JSON array (string)
+  riesgos           String // JSON array (string)
+
+  preguntas           Pregunta[]
+  diagnosticoDominios DiagnosticoDominio[]
+}
+
+model Pregunta {
+  id                   String  @id @default(cuid())
+  dominioId            String
+  dominio              Dominio @relation(fields: [dominioId], references: [id], onDelete: Cascade)
+  orden                Int
+  texto                String
+  descripcion          String
+  evidenciaObligatoria Boolean @default(false)
+
+  respuestas Respuesta[]
+
+  @@unique([dominioId, orden])
+}
+
+// ───────────────────────── Diagnóstico ─────────────────────────
+
+model Diagnostico {
+  id          String    @id @default(cuid())
+  empresaId   String
+  empresa     Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre      String
+  tipo        String // INICIAL, COMPLETO, PARCIAL, REEVALUACION, CERTIFICACION, SEGUIMIENTO
+  estado      String    @default("BORRADOR") // BORRADOR, CONFIGURADO, EN_EJECUCION, EN_VALIDACION, CON_BRECHAS, CON_PLAN, EN_SEGUIMIENTO, PREPARADO_CERT, CERRADO
+  fechaInicio DateTime?
+  fechaCierre DateTime?
+  consultorId String?
+  consultor   User?     @relation("consultor", fields: [consultorId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  dominios DiagnosticoDominio[]
+  brechas  Brecha[]
+  riesgos  Riesgo[]
+  acciones AccionTratamiento[]
+}
+
+model DiagnosticoDominio {
+  id                    String      @id @default(cuid())
+  diagnosticoId         String
+  diagnostico           Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
+  dominioId             String
+  dominio               Dominio     @relation(fields: [dominioId], references: [id])
+  responsableId         String?
+  responsable           User?       @relation("responsable", fields: [responsableId], references: [id])
+  incluido              Boolean     @default(true)
+  justificacionNoAplica String?
+  estado                String      @default("PENDIENTE") // PENDIENTE, EN_EJECUCION, EN_VALIDACION, COMPLETADO
+
+  respuestas Respuesta[]
+
+  @@unique([diagnosticoId, dominioId])
+}
+
+model Respuesta {
+  id                   String             @id @default(cuid())
+  diagnosticoDominioId String
+  diagnosticoDominio   DiagnosticoDominio @relation(fields: [diagnosticoDominioId], references: [id], onDelete: Cascade)
+  preguntaId           String
+  pregunta             Pregunta           @relation(fields: [preguntaId], references: [id])
+  valor                String? // "0".."5", "N_A", "OTRO"; null = pendiente
+  comentario           String?
+  riesgoIdentificado   String?
+  estado               String             @default("PENDIENTE") // PENDIENTE, RESPONDIDA, VALIDADA, OBSERVADA
+  observacionConsultor String?
+  respondidoPorId      String?
+  updatedAt            DateTime           @updatedAt
+
+  evidencias Evidencia[]
+  brecha     Brecha?
+
+  @@unique([diagnosticoDominioId, preguntaId])
+}
+
+model Evidencia {
+  id             String     @id @default(cuid())
+  respuestaId    String?
+  respuesta      Respuesta? @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
+  nombre         String
+  tipoDocumental String?
+  archivoPath    String?
+  version        String?    @default("1.0")
+  estado         String     @default("PENDIENTE") // PENDIENTE, EN_REVISION, VALIDADA, OBSERVADA, RECHAZADA, VENCIDA
+  vigencia       DateTime?
+  observaciones  String?
+  subidoPorId    String?
+  createdAt      DateTime   @default(now())
+}
+
+// ───────────────────────── Motores: brechas, riesgos, plan ─────────────────────────
+
+model Brecha {
+  id                  String      @id @default(cuid())
+  diagnosticoId       String
+  diagnostico         Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
+  respuestaId         String?     @unique
+  respuesta           Respuesta?  @relation(fields: [respuestaId], references: [id], onDelete: SetNull)
+  codigo              String
+  descripcion         String
+  tipo                String // REGULATORIA, DOCUMENTAL, TECNOLOGICA, OPERACIONAL
+  criticidad          String // BAJA, MEDIA, ALTA, CRITICA
+  responsableSugerido String?
+  accionRecomendada   String?
+  evidenciaEsperada   String?
+  estado              String      @default("ABIERTA") // ABIERTA, EN_TRATAMIENTO, CERRADA
+  createdAt           DateTime    @default(now())
+
+  riesgo   Riesgo?
+  acciones AccionTratamiento[]
+}
+
+model Riesgo {
+  id               String      @id @default(cuid())
+  diagnosticoId    String
+  diagnostico      Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
+  brechaId         String?     @unique
+  brecha           Brecha?     @relation(fields: [brechaId], references: [id], onDelete: SetNull)
+  descripcion      String
+  causa            String?
+  consecuencia     String?
+  probabilidad     String // BAJA, MEDIA, ALTA
+  impacto          String // BAJO, MEDIO, ALTO, CRITICO
+  nivel            String // calculado: BAJO, MEDIO, ALTO, CRITICO
+  controlExistente String?
+  mitigacion       String?
+}
+
+model AccionTratamiento {
+  id                  String      @id @default(cuid())
+  diagnosticoId       String
+  diagnostico         Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
+  brechaId            String?
+  brecha              Brecha?     @relation(fields: [brechaId], references: [id], onDelete: SetNull)
+  descripcion         String
+  responsable         String?
+  prioridad           String // ALTA, MEDIA, BAJA
+  plazo               DateTime?
+  esfuerzo            String? // BAJO, MEDIO, ALTO
+  evidenciaEsperada   String?
+  estado              String      @default("PENDIENTE") // PENDIENTE, EN_CURSO, CERRADA
+  avance              Int         @default(0)
+  validacionConsultor Boolean     @default(false)
+}

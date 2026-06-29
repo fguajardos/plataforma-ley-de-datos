@@ -1,0 +1,63 @@
+import { requireSession, getCurrentUser } from "@/lib/session";
+import { ROLE_LABELS } from "@/lib/constants";
+import { navForRole } from "@/lib/nav";
+import { Sidebar } from "@/components/Sidebar";
+import { Icon } from "@/components/Icon";
+import { signOutAction } from "./actions";
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const session = await requireSession();
+  const user = await getCurrentUser();
+  const items = navForRole(session.user.role);
+  const iniciales = (user?.nombre ?? "U")
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return (
+    <div className="flex min-h-screen">
+      {/* Sidebar */}
+      <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white">
+            P360
+          </div>
+          <div>
+            <p className="text-sm font-bold leading-tight text-slate-900">Procesos360</p>
+            <p className="text-xs text-slate-400">LPDP · Ley 21.719</p>
+          </div>
+        </div>
+
+        <Sidebar items={items} />
+
+        <div className="border-t border-slate-100 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand">
+              {iniciales}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-slate-800">{user?.nombre}</p>
+              <p className="truncate text-xs text-slate-400">{ROLE_LABELS[session.user.role]}</p>
+            </div>
+          </div>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              <Icon name="logout" className="h-5 w-5" />
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      {/* Contenido */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
+      </main>
+    </div>
+  );
+}
