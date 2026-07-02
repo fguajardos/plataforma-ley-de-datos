@@ -12,7 +12,7 @@ export default async function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <Logo className="mb-2 text-3xl" />
+          <Logo className="mx-auto mb-3 h-11" />
           <p className="text-sm font-semibold text-slate-500">LPDP · Ley N° 21.719</p>
           <p className="mt-1 text-sm text-slate-500">
             Diagnóstico y cumplimiento de datos personales

@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Sidebar */}
       <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
         <div className="border-b border-slate-100 px-5 py-4">
-          <Logo className="text-lg" />
+          <Logo className="h-7" />
           <p className="mt-1 text-xs text-slate-400">LPDP · Ley 21.719</p>
         </div>
 
