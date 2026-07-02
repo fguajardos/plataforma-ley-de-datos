@@ -3,6 +3,7 @@ import { ROLE_LABELS } from "@/lib/constants";
 import { navForRole } from "@/lib/nav";
 import { Sidebar } from "@/components/Sidebar";
 import { Icon } from "@/components/Icon";
+import { Logo } from "@/components/Logo";
 import { signOutAction } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -20,14 +21,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white">
-            P360
-          </div>
-          <div>
-            <p className="text-sm font-bold leading-tight text-slate-900">Procesos360</p>
-            <p className="text-xs text-slate-400">LPDP · Ley 21.719</p>
-          </div>
+        <div className="border-b border-slate-100 px-5 py-4">
+          <Logo className="text-lg" />
+          <p className="mt-1 text-xs text-slate-400">LPDP · Ley 21.719</p>
         </div>
 
         <Sidebar items={items} />

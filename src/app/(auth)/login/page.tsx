@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
+import { Logo } from "@/components/Logo";
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage() {
@@ -11,12 +12,10 @@ export default async function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-lg font-bold text-white">
-            P360
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Procesos360 LPDP</h1>
+          <Logo className="mb-2 text-3xl" />
+          <p className="text-sm font-semibold text-slate-500">LPDP · Ley N° 21.719</p>
           <p className="mt-1 text-sm text-slate-500">
-            Diagnóstico y cumplimiento Ley N° 21.719
+            Diagnóstico y cumplimiento de datos personales
           </p>
         </div>
 
