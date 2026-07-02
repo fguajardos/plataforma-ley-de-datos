@@ -6,6 +6,7 @@ import { fmt } from "@/lib/utils";
 import { getDiagnosticoFull, madurezDeDiagnostico } from "@/lib/data/diagnosticos";
 import { RadarChart } from "@/components/RadarChart";
 import { NivelBadge, CriticidadBadge } from "@/components/badges";
+import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { PrintButton } from "./PrintButton";
 
 export default async function ReportePage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +28,9 @@ export default async function ReportePage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-4xl">
+      <div className="print:hidden">
+        <DiagnosticoNav id={id} active="reporte" />
+      </div>
       <div className="mb-6 flex items-center justify-between print:hidden">
         <Link href={`/diagnosticos/${id}`} className="text-sm text-brand-600 hover:underline">
           ← Volver

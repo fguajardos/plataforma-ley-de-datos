@@ -54,9 +54,19 @@ git push -u origin main
 - Entra con `consultor@procesos360.cl` / `Demo1234`.
 - Recorre: Diagnósticos → un dominio → Madurez → Brechas → Reporte.
 
+## 7. Supabase Storage (evidencias)
+
+1. Supabase → **Storage** → **New bucket** → nombre `evidencias`, **privado** (sin acceso público).
+2. Copia la **service_role key** desde **Project Settings → API**.
+3. Agrega a `.env` (local) y a Vercel (Production + Preview):
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://[REF].supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY` = la service_role (secreta)
+4. Los archivos se sirven con URLs firmadas temporales; no se exponen públicamente.
+
 ## Notas
 
 - El build en Vercel corre `prisma generate && next build` (ya configurado).
+- El límite de subida de evidencias es 10 MB (`next.config.ts` → `serverActions.bodySizeLimit`).
 - Cambios futuros: `git push` redepliega automáticamente.
 - La carga de archivos de evidencia (pendiente) usará **Supabase Storage**, no el disco de
   Vercel (efímero).

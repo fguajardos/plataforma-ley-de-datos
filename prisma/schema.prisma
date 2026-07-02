@@ -49,6 +49,8 @@ model Area {
   trataDatos           Boolean @default(false)
   trataDatosSensibles  Boolean @default(false)
   usaSistemas          Boolean @default(false)
+
+  dominios DiagnosticoDominio[]
 }
 
 // ───────────────────────── Usuarios y roles ─────────────────────────
@@ -126,11 +128,14 @@ model DiagnosticoDominio {
   dominio               Dominio     @relation(fields: [dominioId], references: [id])
   responsableId         String?
   responsable           User?       @relation("responsable", fields: [responsableId], references: [id])
+  areaId                String?
+  area                  Area?       @relation(fields: [areaId], references: [id], onDelete: SetNull)
   incluido              Boolean     @default(true)
   justificacionNoAplica String?
   estado                String      @default("PENDIENTE") // PENDIENTE, EN_EJECUCION, EN_VALIDACION, COMPLETADO
 
   respuestas Respuesta[]
+  evidencias Evidencia[]
 
   @@unique([diagnosticoId, dominioId])
 }
@@ -156,18 +161,26 @@ model Respuesta {
 }
 
 model Evidencia {
-  id             String     @id @default(cuid())
-  respuestaId    String?
-  respuesta      Respuesta? @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
-  nombre         String
-  tipoDocumental String?
-  archivoPath    String?
-  version        String?    @default("1.0")
-  estado         String     @default("PENDIENTE") // PENDIENTE, EN_REVISION, VALIDADA, OBSERVADA, RECHAZADA, VENCIDA
-  vigencia       DateTime?
-  observaciones  String?
-  subidoPorId    String?
-  createdAt      DateTime   @default(now())
+  id                   String              @id @default(cuid())
+  respuestaId          String?
+  respuesta            Respuesta?          @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
+  diagnosticoDominioId String?
+  diagnosticoDominio   DiagnosticoDominio? @relation(fields: [diagnosticoDominioId], references: [id], onDelete: Cascade)
+  brechaId             String?
+  brecha               Brecha?             @relation(fields: [brechaId], references: [id], onDelete: SetNull)
+  accionId             String?
+  accion               AccionTratamiento?  @relation(fields: [accionId], references: [id], onDelete: SetNull)
+  nombre               String
+  tipoDocumental       String?
+  archivoPath          String?
+  mimeType             String?
+  tamano               Int?
+  version              String?             @default("1.0")
+  estado               String              @default("PENDIENTE") // PENDIENTE, EN_REVISION, VALIDADA, OBSERVADA, RECHAZADA, VENCIDA
+  vigencia             DateTime?
+  observaciones        String?
+  subidoPorId          String?
+  createdAt            DateTime            @default(now())
 }
 
 // ───────────────────────── Motores: brechas, riesgos, plan ─────────────────────────
@@ -188,8 +201,9 @@ model Brecha {
   estado              String      @default("ABIERTA") // ABIERTA, EN_TRATAMIENTO, CERRADA
   createdAt           DateTime    @default(now())
 
-  riesgo   Riesgo?
-  acciones AccionTratamiento[]
+  riesgo     Riesgo?
+  acciones   AccionTratamiento[]
+  evidencias Evidencia[]
 }
 
 model Riesgo {
@@ -223,4 +237,6 @@ model AccionTratamiento {
   estado              String      @default("PENDIENTE") // PENDIENTE, EN_CURSO, CERRADA
   avance              Int         @default(0)
   validacionConsultor Boolean     @default(false)
+
+  evidencias Evidencia[]
 }

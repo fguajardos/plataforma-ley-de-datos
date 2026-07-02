@@ -132,6 +132,9 @@ async function main() {
     },
   });
 
+  // Áreas de la empresa (para asignar a los dominios y calcular madurez por área).
+  const areas = await prisma.area.findMany({ where: { empresaId: empresa.id }, orderBy: { nombre: "asc" } });
+
   // DiagnosticoDominio + respuestas (pendientes) para cada pregunta
   for (const d of dominios) {
     const dd = await prisma.diagnosticoDominio.create({
@@ -139,6 +142,7 @@ async function main() {
         diagnosticoId: diagnostico.id,
         dominioId: dominioIds[d.orden],
         responsableId: responsable.id,
+        areaId: areas.length ? areas[(d.orden - 1) % areas.length].id : null,
         estado: "PENDIENTE",
       },
     });

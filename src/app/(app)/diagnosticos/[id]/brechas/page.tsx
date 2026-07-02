@@ -1,10 +1,10 @@
-import Link from "next/link";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { getDiagnosticoFull } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, Badge } from "@/components/ui";
 import { CriticidadBadge } from "@/components/badges";
+import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { GenerarBrechasButton } from "./GenerarBrechasButton";
 
 const ORDEN_CRIT: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA: 3 };
@@ -36,14 +36,10 @@ export default async function BrechasPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
-      <div className="mb-2">
-        <Link href={`/diagnosticos/${id}`} className="text-sm text-brand-600 hover:underline">
-          ← {diag.nombre}
-        </Link>
-      </div>
+      <DiagnosticoNav id={id} active="brechas" />
       <PageHeader
         title="Motor de Brechas"
-        subtitle="Incumplimientos detectados frente a la Ley N° 21.719"
+        subtitle={`${diag.nombre} · incumplimientos frente a la Ley N° 21.719`}
         actions={<GenerarBrechasButton diagnosticoId={id} />}
       />
 

@@ -149,3 +149,110 @@ export function nivelRiesgo(
   if (score >= 3) return "MEDIO";
   return "BAJO";
 }
+
+export type Criticidad = (typeof CRITICIDAD)[number];
+
+// ───────────────────────── Plan de tratamiento (acciones) ─────────────────────────
+
+export const PRIORIDAD = ["ALTA", "MEDIA", "BAJA"] as const;
+export const ESFUERZO = ["BAJO", "MEDIO", "ALTO"] as const;
+
+export const ESTADO_ACCION = {
+  PENDIENTE: "Pendiente",
+  EN_CURSO: "En curso",
+  CERRADA: "Cerrada",
+} as const;
+
+export const ESTADO_BRECHA = {
+  ABIERTA: "Abierta",
+  EN_TRATAMIENTO: "En tratamiento",
+  CERRADA: "Cerrada",
+} as const;
+
+export const ESTADO_RIESGO = {
+  ABIERTO: "Abierto",
+  EN_TRATAMIENTO: "En tratamiento",
+  MITIGADO: "Mitigado",
+} as const;
+
+/** Prioridad de la acción según la criticidad de la brecha que la origina. */
+export function prioridadPorCriticidad(criticidad: string): (typeof PRIORIDAD)[number] {
+  if (criticidad === "CRITICA" || criticidad === "ALTA") return "ALTA";
+  if (criticidad === "MEDIA") return "MEDIA";
+  return "BAJA";
+}
+
+/** Esfuerzo estimado según criticidad. */
+export function esfuerzoPorCriticidad(criticidad: string): (typeof ESFUERZO)[number] {
+  if (criticidad === "CRITICA") return "ALTO";
+  if (criticidad === "ALTA") return "MEDIO";
+  return "BAJO";
+}
+
+// ───────────────────────── Roadmap (horizontes, doc §13.2) ─────────────────────────
+
+export type HorizonteKey = "H30" | "H60" | "H90" | "H120" | "H180";
+
+export const HORIZONTES: { key: HorizonteKey; label: string; objetivo: string; dias: number }[] = [
+  { key: "H30", label: "0–30 días", objetivo: "Resolver brechas críticas", dias: 30 },
+  { key: "H60", label: "31–60 días", objetivo: "Formalizar políticas, responsables y controles", dias: 60 },
+  { key: "H90", label: "61–90 días", objetivo: "Implementar procedimientos y evidencias", dias: 90 },
+  { key: "H120", label: "91–120 días", objetivo: "Monitorear KPI, riesgos y controles", dias: 120 },
+  { key: "H180", label: "121–180 días", objetivo: "Preparar expediente de certificación", dias: 180 },
+];
+
+/** Días-plazo por defecto desde la fecha base, según criticidad de la brecha. */
+export function diasPlazoPorCriticidad(criticidad: string): number {
+  if (criticidad === "CRITICA") return 30;
+  if (criticidad === "ALTA") return 60;
+  if (criticidad === "MEDIA") return 90;
+  return 120;
+}
+
+/** Ubica una cantidad de días en su horizonte de roadmap. */
+export function horizontePorDias(dias: number): HorizonteKey {
+  if (dias <= 30) return "H30";
+  if (dias <= 60) return "H60";
+  if (dias <= 90) return "H90";
+  if (dias <= 120) return "H120";
+  return "H180";
+}
+
+// ───────────────────────── Preparación para certificación (doc §14) ─────────────────────────
+
+export type EstadoPreparacion = "NO_PREPARADO" | "INICIAL" | "EN_PROCESO" | "CASI" | "LISTO";
+
+export const ESTADO_PREPARACION: Record<
+  EstadoPreparacion,
+  { label: string; descripcion: string; color: string; min: number }
+> = {
+  NO_PREPARADO: { label: "No preparado", descripcion: "Existen brechas críticas abiertas", color: "#dc2626", min: 0 },
+  INICIAL: { label: "Inicial", descripcion: "Existen controles parciales", color: "#f97316", min: 30 },
+  EN_PROCESO: { label: "En proceso", descripcion: "Plan de tratamiento en ejecución", color: "#eab308", min: 50 },
+  CASI: { label: "Casi preparado", descripcion: "Brechas menores pendientes", color: "#22c55e", min: 75 },
+  LISTO: { label: "Listo para certificación", descripcion: "Cumple umbral definido", color: "#16a34a", min: 90 },
+};
+
+/** Clasifica el índice de preparación (0-100) en su estado. */
+export function clasificarPreparacion(indice: number): EstadoPreparacion {
+  if (indice >= 90) return "LISTO";
+  if (indice >= 75) return "CASI";
+  if (indice >= 50) return "EN_PROCESO";
+  if (indice >= 30) return "INICIAL";
+  return "NO_PREPARADO";
+}
+
+// ───────────────────────── Evidencias (doc §8.3) ─────────────────────────
+
+export const TIPO_DOCUMENTAL = [
+  "Política",
+  "Procedimiento",
+  "Contrato",
+  "Cláusula",
+  "Registro",
+  "Inventario",
+  "Acta",
+  "Informe",
+  "Matriz",
+  "Otro",
+] as const;

@@ -5,6 +5,7 @@ import { guardarRespuesta } from "./actions";
 import { VALORES, ESCALA, requiereComentario, type Valor } from "@/lib/constants";
 import { Badge, Button, Textarea, Input, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { EvidenciasPregunta, type EvidenciaVM } from "./EvidenciasPregunta";
 
 type Props = {
   respuesta: {
@@ -15,13 +16,15 @@ type Props = {
     estado: string;
   };
   pregunta: { orden: number; texto: string; descripcion: string; evidenciaObligatoria: boolean };
+  evidencias?: EvidenciaVM[];
+  puedeValidar?: boolean;
 };
 
 const LABEL_CORTO: Record<Valor, string> = {
   "0": "0", "1": "1", "2": "2", "3": "3", "4": "4", "5": "5", N_A: "N/A", OTRO: "Otro",
 };
 
-export function PreguntaItem({ respuesta, pregunta }: Props) {
+export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: Props) {
   const [valor, setValor] = useState<string | null>(respuesta.valor);
   const [comentario, setComentario] = useState(respuesta.comentario ?? "");
   const [riesgo, setRiesgo] = useState(respuesta.riesgoIdentificado ?? "");
@@ -135,6 +138,12 @@ export function PreguntaItem({ respuesta, pregunta }: Props) {
               </span>
             )}
           </div>
+
+          <EvidenciasPregunta
+            respuestaId={respuesta.id}
+            evidencias={evidencias ?? []}
+            puedeValidar={!!puedeValidar}
+          />
         </div>
       </div>
     </div>

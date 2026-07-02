@@ -1,15 +1,23 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { EmpresaDatosForm } from "./EmpresaDatosForm";
+import { AreasManager } from "./AreasManager";
+import { UsuariosManager } from "./UsuariosManager";
 
 export default async function EmpresaPage() {
   const session = await requireRole([ROLES.ADMIN_EMPRESA]);
   const empresa = session.user.empresaId
     ? await prisma.empresa.findUnique({
         where: { id: session.user.empresaId },
-        include: { areas: true },
+        include: {
+          areas: { orderBy: { nombre: "asc" } },
+          usuarios: { orderBy: { nombre: "asc" } },
+          diagnosticos: { select: { id: true, estado: true }, orderBy: { createdAt: "desc" } },
+        },
       })
     : null;
 
@@ -17,67 +25,60 @@ export default async function EmpresaPage() {
     return <Card className="p-8 text-sm text-slate-500">No se encontró la empresa.</Card>;
   }
 
-  const datos: [string, string | number | null][] = [
-    ["Razón social", empresa.razonSocial],
-    ["RUT", empresa.rut],
-    ["Nombre comercial", empresa.nombreComercial],
-    ["Industria", empresa.industria],
-    ["Tamaño", empresa.tamano],
-    ["País", empresa.pais],
-    ["Región", empresa.region],
-    ["N° colaboradores", empresa.numColaboradores],
-    ["Sitio web", empresa.sitioWeb],
-    ["Responsable", empresa.responsablePrincipal],
-    ["Correo responsable", empresa.correoResponsable],
-    ["Teléfono", empresa.telefono],
-  ];
+  const sinConfigurar = empresa.diagnosticos.every((d) => d.estado === "BORRADOR");
 
   return (
     <>
-      <PageHeader title="Mi Empresa" subtitle="Perfil organizacional y áreas" />
+      <PageHeader title="Mi Empresa" subtitle="Perfil organizacional, áreas y usuarios" />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Onboarding / bienvenida (doc §5.3) */}
+      {sinConfigurar && (
+        <Card className="mb-6 border-brand-200 bg-brand-50/40">
+          <CardContent className="flex flex-col items-start gap-2 py-5">
+            <p className="text-sm font-semibold text-slate-800">Bienvenido al Diagnóstico LPDP Procesos360</p>
+            <p className="text-sm text-slate-600">
+              Evalúa el cumplimiento de tu organización frente a la Ley N° 21.719: completa tus datos y áreas,
+              crea tus usuarios y configura tu diagnóstico para comenzar.
+            </p>
+            <Link
+              href="/diagnosticos/nuevo"
+              className="mt-1 inline-flex h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-600/90"
+            >
+              Iniciar configuración →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Datos de la empresa</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              {datos.map(([k, v]) => (
-                <div key={k}>
-                  <dt className="text-xs text-slate-400">{k}</dt>
-                  <dd className="text-slate-800">{v ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
+            <EmpresaDatosForm empresa={empresa} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Áreas ({empresa.areas.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ul className="divide-y divide-slate-100">
-              {empresa.areas.map((a) => (
-                <li key={a.id} className="px-5 py-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{a.nombre}</p>
-                      <p className="text-xs text-slate-400">
-                        {a.responsable} {a.cargo ? `· ${a.cargo}` : ""}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5">
-                      {a.trataDatos && <Badge color="blue">Datos</Badge>}
-                      {a.trataDatosSensibles && <Badge color="red">Sensibles</Badge>}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Áreas ({empresa.areas.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AreasManager empresaId={empresa.id} areas={empresa.areas} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Usuarios internos ({empresa.usuarios.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UsuariosManager empresaId={empresa.id} usuarios={empresa.usuarios} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </>
   );

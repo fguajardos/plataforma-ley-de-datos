@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/session";
-import { ROLES, TIPO_DIAGNOSTICO } from "@/lib/constants";
+import { ROLES, TIPO_DIAGNOSTICO, type Role } from "@/lib/constants";
 import { listarDiagnosticos } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui";
 import { EstadoDiagnosticoBadge } from "@/components/badges";
+
+const PUEDE_CREAR: Role[] = [ROLES.ADMIN_P360, ROLES.CONSULTOR, ROLES.ADMIN_EMPRESA];
 
 export default async function DiagnosticosPage() {
   const session = await requireRole([
@@ -17,7 +19,20 @@ export default async function DiagnosticosPage() {
 
   return (
     <>
-      <PageHeader title="Diagnósticos" subtitle="Evaluaciones de cumplimiento LPDP" />
+      <PageHeader
+        title="Diagnósticos"
+        subtitle="Evaluaciones de cumplimiento LPDP"
+        actions={
+          PUEDE_CREAR.includes(session.user.role) ? (
+            <Link
+              href="/diagnosticos/nuevo"
+              className="inline-flex h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-600/90"
+            >
+              + Nuevo diagnóstico
+            </Link>
+          ) : undefined
+        }
+      />
 
       {diagnosticos.length === 0 ? (
         <Card className="p-10 text-center text-sm text-slate-500">

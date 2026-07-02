@@ -6,6 +6,7 @@ import { getDiagnosticoFull, madurezDeDiagnostico } from "@/lib/data/diagnostico
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { EstadoDiagnosticoBadge, NivelBadge } from "@/components/badges";
+import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 
 export default async function DiagnosticoDetallePage({
   params,
@@ -27,30 +28,17 @@ export default async function DiagnosticoDetallePage({
 
   return (
     <>
+      <DiagnosticoNav id={id} active="resumen" />
       <PageHeader
         title={diag.nombre}
         subtitle={`${diag.empresa.razonSocial} · ${TIPO_DIAGNOSTICO[diag.tipo as keyof typeof TIPO_DIAGNOSTICO] ?? diag.tipo}`}
         actions={
-          <>
-            <Link
-              href={`/diagnosticos/${id}/reporte`}
-              className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Reporte
-            </Link>
-            <Link
-              href={`/diagnosticos/${id}/madurez`}
-              className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Madurez
-            </Link>
-            <Link
-              href={`/diagnosticos/${id}/brechas`}
-              className="inline-flex h-10 items-center rounded-lg bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-600/90"
-            >
-              Brechas
-            </Link>
-          </>
+          <Link
+            href={`/diagnosticos/${id}/configurar`}
+            className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Configurar
+          </Link>
         }
       />
 

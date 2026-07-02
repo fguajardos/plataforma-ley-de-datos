@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requireSession, esStaffP360 } from "@/lib/session";
 import { getDiagnosticoDominio } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -13,6 +13,7 @@ export default async function DominioPage({
   const { id, orden } = await params;
   const session = await requireSession();
   const { diag, dd } = await getDiagnosticoDominio(id, Number(orden), session);
+  const puedeValidar = esStaffP360(session.user.role);
 
   const evidencias: string[] = JSON.parse(dd.dominio.evidenciasMinimas || "[]");
   const respondidas = dd.respuestas.filter((r) => r.valor != null).length;
@@ -77,6 +78,15 @@ export default async function DominioPage({
                 descripcion: r.pregunta.descripcion,
                 evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
               }}
+              puedeValidar={puedeValidar}
+              evidencias={r.evidencias.map((e) => ({
+                id: e.id,
+                nombre: e.nombre,
+                tipoDocumental: e.tipoDocumental,
+                estado: e.estado,
+                archivoPath: e.archivoPath,
+                observaciones: e.observaciones,
+              }))}
             />
           ))}
         </CardContent>
