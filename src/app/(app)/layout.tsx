@@ -5,6 +5,9 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatWidget } from "@/components/ChatWidget";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
+import { Tour } from "@/components/Tour";
+import { BotonTour } from "@/components/BotonTour";
+import { pasosParaRol } from "@/lib/tour";
 import { signOutAction } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Sidebar items={items} />
 
         <div className="border-t border-slate-100 p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+          <div data-tour="usuario" className="flex items-center gap-3 rounded-lg px-2 py-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand">
               {iniciales}
             </div>
@@ -39,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <p className="truncate text-xs text-slate-400">{ROLE_LABELS[session.user.role]}</p>
             </div>
           </div>
+          <BotonTour />
           <form action={signOutAction}>
             <button
               type="submit"
@@ -57,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </main>
 
       <ChatWidget />
+      <Tour pasos={pasosParaRol(session.user.role)} activo={!user?.tourVisto} />
     </div>
   );
 }

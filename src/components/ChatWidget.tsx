@@ -176,6 +176,7 @@ export function ChatWidget() {
       {/* Burbuja */}
       <button
         onClick={() => setAbierto((v) => !v)}
+        data-tour="chat"
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg transition-transform hover:scale-105"
         title={abierto ? "Cerrar asistente" : "Abrir asistente"}
       >

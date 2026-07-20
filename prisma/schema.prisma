@@ -65,6 +65,7 @@ model User {
   empresaId    String? // null para staff de Procesos360
   empresa      Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   activo       Boolean  @default(true)
+  tourVisto    Boolean  @default(false) // tutorial inicial completado u omitido
   createdAt    DateTime @default(now())
 
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
