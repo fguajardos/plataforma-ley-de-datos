@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { requireSession, getCurrentUser, esStaffP360 } from "@/lib/session";
-import { ROLE_LABELS, NIVEL_MADUREZ, ROLES, type Role } from "@/lib/constants";
+import {
+  ROLE_LABELS,
+  NIVEL_MADUREZ,
+  ROLES,
+  ESTADO_DIAGNOSTICO_DESC,
+  type Role,
+} from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import { prisma } from "@/lib/db";
 import {
@@ -276,12 +282,19 @@ async function DashboardEmpresa({
 
       <div className="mb-6">
         <Card>
-          <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          <CardContent className="py-4">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
               Estado del proceso
-            </span>
-            <EstadoDiagnosticoBadge estado={diag.estado} />
-            <span className="text-sm text-slate-500">{diag.nombre}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <EstadoDiagnosticoBadge estado={diag.estado} />
+              <span className="text-sm text-slate-600">
+                {ESTADO_DIAGNOSTICO_DESC[diag.estado as keyof typeof ESTADO_DIAGNOSTICO_DESC]}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              Diagnóstico: {diag.nombre}
+            </p>
           </CardContent>
         </Card>
       </div>

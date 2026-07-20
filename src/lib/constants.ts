@@ -106,6 +106,20 @@ export const ESTADO_DIAGNOSTICO = {
   CERRADO: "Cerrado",
 } as const;
 
+/** Qué significa cada estado (doc §6.6). Se muestra junto a la etiqueta para que no
+ *  haya que adivinar en qué punto del proceso va el diagnóstico. */
+export const ESTADO_DIAGNOSTICO_DESC: Record<keyof typeof ESTADO_DIAGNOSTICO, string> = {
+  BORRADOR: "Diagnóstico creado, pero no iniciado",
+  CONFIGURADO: "Tiene dominios y participantes asignados; falta responder",
+  EN_EJECUCION: "Los responsables están respondiendo los cuestionarios",
+  EN_VALIDACION: "El consultor está revisando las respuestas",
+  CON_BRECHAS: "Se ejecutó el motor de brechas",
+  CON_PLAN: "Se generó el plan de tratamiento",
+  EN_SEGUIMIENTO: "La empresa está ejecutando las acciones",
+  PREPARADO_CERT: "Cumple el umbral definido para certificar",
+  CERRADO: "Diagnóstico finalizado",
+};
+
 // ───────────────────────── Brechas, riesgos, evidencias ─────────────────────────
 
 export const CRITICIDAD = ["BAJA", "MEDIA", "ALTA", "CRITICA"] as const;
