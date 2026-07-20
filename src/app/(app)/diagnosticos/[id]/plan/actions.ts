@@ -6,13 +6,16 @@ import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
 import { assertAccesoDiagnostico } from "@/lib/data/diagnosticos";
 import { generarPlan, type BrechaPlanInput } from "@/lib/engines/plan";
-import { ESTADO_ACCION } from "@/lib/constants";
+import { ESTADO_ACCION, ROLES } from "@/lib/constants";
 
 export type ActionResult = { ok: boolean; count?: number; error?: string };
 
 /** Genera el plan de tratamiento a partir de las brechas (reemplaza el existente). */
 export async function generarPlanAction(diagnosticoId: string): Promise<ActionResult> {
   const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    return { ok: false, error: "No tienes permiso para esta accion. Tu rol solo responde el cuestionario de sus dominios asignados." };
+  }
   const diag = await assertAccesoDiagnostico(diagnosticoId, session);
   if (!diag) return { ok: false, error: "Sin acceso al diagnóstico." };
 
@@ -66,6 +69,9 @@ const updateSchema = z.object({
 /** Actualiza el seguimiento de una acción (estado, % avance, validación del consultor). */
 export async function actualizarAccionAction(input: z.input<typeof updateSchema>): Promise<ActionResult> {
   const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    return { ok: false, error: "No tienes permiso para esta accion. Tu rol solo responde el cuestionario de sus dominios asignados." };
+  }
   const parsed = updateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
   const { accionId, estado, avance, validacionConsultor } = parsed.data;

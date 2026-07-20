@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
-import { TIPO_DIAGNOSTICO, NIVEL_MADUREZ } from "@/lib/constants";
+import { ROLES, TIPO_DIAGNOSTICO, NIVEL_MADUREZ } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import { getDiagnosticoFull, madurezDeDiagnostico } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
@@ -28,20 +28,25 @@ export default async function DiagnosticoDetallePage({
 
   // Dominios asignados al usuario de la sesión (para destacarlos y orientarlo).
   const misDominios = dominiosIncluidos.filter((d) => d.responsable?.id === session.user.id);
+  // El Responsable de Dominio solo responde su cuestionario: sin pestañas de
+  // gestión, sin Configurar y sin entrar a dominios ajenos.
+  const esResponsableRol = session.user.role === ROLES.RESPONSABLE_DOMINIO;
 
   return (
     <>
-      <DiagnosticoNav id={id} active="resumen" />
+      <DiagnosticoNav id={id} active="resumen" role={session.user.role} />
       <PageHeader
         title={diag.nombre}
         subtitle={`${diag.empresa.razonSocial} · ${TIPO_DIAGNOSTICO[diag.tipo as keyof typeof TIPO_DIAGNOSTICO] ?? diag.tipo}`}
         actions={
-          <Link
-            href={`/diagnosticos/${id}/configurar`}
-            className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Configurar
-          </Link>
+          esResponsableRol ? undefined : (
+            <Link
+              href={`/diagnosticos/${id}/configurar`}
+              className="inline-flex h-10 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Configurar
+            </Link>
+          )
         }
       />
 
@@ -128,44 +133,60 @@ export default async function DiagnosticoDetallePage({
                   </li>
                 );
               }
+              // El responsable de dominio no entra a los dominios de otros.
+              const bloqueado = esResponsableRol && !esMio;
+              const contenido = (
+                <>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-bold text-brand">
+                    {d.dominio.orden}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {d.dominio.nombre}
+                      {esMio && (
+                        <span className="ml-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+                          Te corresponde
+                        </span>
+                      )}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-brand-600"
+                          style={{ width: `${res?.avance ?? 0}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-slate-400">{res?.avance ?? 0}%</span>
+                      {d.responsable && (
+                        <span className="truncate text-xs text-slate-400">
+                          · Responsable: {d.responsable.nombre}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-slate-700">{fmt(res?.promedio ?? null)}</span>
+                    <NivelBadge nivel={res?.nivel ?? null} />
+                  </div>
+                </>
+              );
               return (
                 <li key={d.id} className={esMio ? "bg-brand-50/60" : undefined}>
-                  <Link
-                    href={`/diagnosticos/${id}/dominios/${d.dominio.orden}`}
-                    className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-bold text-brand">
-                      {d.dominio.orden}
+                  {bloqueado ? (
+                    <div
+                      className="flex cursor-not-allowed items-center gap-4 px-5 py-3 opacity-60"
+                      title={`Dominio a cargo de ${d.responsable?.nombre ?? "otro responsable"}`}
+                    >
+                      {contenido}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">
-                        {d.dominio.nombre}
-                        {esMio && (
-                          <span className="ml-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-                            Te corresponde
-                          </span>
-                        )}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2">
-                        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-brand-600"
-                            style={{ width: `${res?.avance ?? 0}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-slate-400">{res?.avance ?? 0}%</span>
-                        {d.responsable && (
-                          <span className="truncate text-xs text-slate-400">
-                            · Responsable: {d.responsable.nombre}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-slate-700">{fmt(res?.promedio ?? null)}</span>
-                      <NivelBadge nivel={res?.nivel ?? null} />
-                    </div>
-                  </Link>
+                  ) : (
+                    <Link
+                      href={`/diagnosticos/${id}/dominios/${d.dominio.orden}`}
+                      className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50"
+                    >
+                      {contenido}
+                    </Link>
+                  )}
                 </li>
               );
             })}

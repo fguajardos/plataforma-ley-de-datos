@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { NIVEL_MADUREZ } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import {
@@ -16,7 +16,7 @@ import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 
 export default async function MadurezPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session);
   const madurez = madurezDeDiagnostico(diag);
 

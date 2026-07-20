@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireSession, esStaffP360 } from "@/lib/session";
+import { ROLES } from "@/lib/constants";
 import { getDiagnosticoDominio } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -14,6 +15,37 @@ export default async function DominioPage({
   const session = await requireSession();
   const { diag, dd } = await getDiagnosticoDominio(id, Number(orden), session);
   const puedeValidar = esStaffP360(session.user.role);
+
+  // El Responsable de Dominio solo puede entrar a los dominios que tiene asignados.
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO && dd.responsable?.id !== session.user.id) {
+    return (
+      <>
+        <div className="mb-2">
+          <Link href={`/diagnosticos/${id}`} className="text-sm text-brand-600 hover:underline">
+            ← {diag.nombre}
+          </Link>
+        </div>
+        <PageHeader title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`} />
+        <Card>
+          <CardContent className="py-10 text-center">
+            <p className="text-sm font-medium text-slate-700">
+              Este dominio no está asignado a ti
+              {dd.responsable ? ` — su responsable es ${dd.responsable.nombre}` : ""}.
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Solo puedes responder los dominios donde figuras como responsable.
+            </p>
+            <Link
+              href={`/diagnosticos/${id}`}
+              className="mt-4 inline-flex rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              Volver al resumen
+            </Link>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 
   const evidencias: string[] = JSON.parse(dd.dominio.evidenciasMinimas || "[]");
   const respondidas = dd.respuestas.filter((r) => r.valor != null).length;

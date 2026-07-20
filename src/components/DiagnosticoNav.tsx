@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { ROLES, type Role } from "@/lib/constants";
 
 // Sub-navegación horizontal para las secciones de un diagnóstico.
 // El viaje del Documento Funcional Base: resumen → config → cuestionario → motores → reportes.
+// El Responsable de Dominio solo responde su cuestionario: no ve las pestañas de gestión.
 
 const TABS: { key: string; suffix: string; label: string }[] = [
   { key: "resumen", suffix: "", label: "Resumen" },
@@ -18,7 +20,8 @@ const TABS: { key: string; suffix: string; label: string }[] = [
   { key: "expediente", suffix: "/expediente", label: "Expediente" },
 ];
 
-export function DiagnosticoNav({ id, active }: { id: string; active: string }) {
+export function DiagnosticoNav({ id, active, role }: { id: string; active: string; role?: Role }) {
+  if (role === ROLES.RESPONSABLE_DOMINIO) return null;
   return (
     <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 pb-px print:hidden">
       {TABS.map((t) => {

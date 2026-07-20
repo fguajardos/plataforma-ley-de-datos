@@ -3,7 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { ROLES_P360, type Role } from "@/lib/constants";
+import { ROLES, ROLES_P360, type Role } from "@/lib/constants";
 
 /** Sesión memoizada dentro del request. */
 export const getSession = cache(async () => auth());
@@ -29,6 +29,18 @@ export const getCurrentUser = cache(async () => {
     include: { empresa: true },
   });
 });
+
+/**
+ * Guard de las secciones de gestión de un diagnóstico (configurar, madurez,
+ * brechas, riesgos, plan, roadmap, certificación, reportes, expediente).
+ * El Responsable de Dominio solo responde su cuestionario: se le redirige
+ * al resumen del diagnóstico.
+ */
+export async function requireAccesoSecciones(diagnosticoId: string) {
+  const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) redirect(`/diagnosticos/${diagnosticoId}`);
+  return session;
+}
 
 /** ¿El usuario pertenece al staff de Procesos360 (ve todas las empresas)? */
 export function esStaffP360(role: Role): boolean {

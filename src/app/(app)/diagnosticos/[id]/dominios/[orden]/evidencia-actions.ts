@@ -10,7 +10,7 @@ import {
   urlFirmadaEvidencia,
   storageConfigurado,
 } from "@/lib/storage";
-import { ESTADO_EVIDENCIA } from "@/lib/constants";
+import { ESTADO_EVIDENCIA, ROLES } from "@/lib/constants";
 
 export type EvidenciaResult = { ok: boolean; error?: string };
 
@@ -41,6 +41,7 @@ export async function subirEvidenciaAction(formData: FormData): Promise<Evidenci
       diagnosticoDominio: {
         select: {
           id: true,
+          responsableId: true,
           diagnostico: { select: { id: true, empresaId: true } },
           dominio: { select: { orden: true } },
         },
@@ -51,6 +52,13 @@ export async function subirEvidenciaAction(formData: FormData): Promise<Evidenci
   const diag = respuesta.diagnosticoDominio.diagnostico;
   if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) {
     return { ok: false, error: "Sin acceso." };
+  }
+  // El Responsable de Dominio solo adjunta evidencias en sus dominios asignados.
+  if (
+    session.user.role === ROLES.RESPONSABLE_DOMINIO &&
+    respuesta.diagnosticoDominio.responsableId !== session.user.id
+  ) {
+    return { ok: false, error: "Este dominio no está asignado a ti." };
   }
 
   let archivoPath: string | null = null;
@@ -159,7 +167,7 @@ export async function eliminarEvidenciaAction(evidenciaId: string): Promise<Evid
       respuesta: {
         select: {
           diagnosticoDominio: {
-            select: { diagnostico: { select: { id: true, empresaId: true } }, dominio: { select: { orden: true } } },
+            select: { responsableId: true, diagnostico: { select: { id: true, empresaId: true } }, dominio: { select: { orden: true } } },
           },
         },
       },
@@ -169,6 +177,13 @@ export async function eliminarEvidenciaAction(evidenciaId: string): Promise<Evid
   const diag = ev.respuesta?.diagnosticoDominio.diagnostico;
   if (!esStaffP360(session.user.role) && diag?.empresaId !== session.user.empresaId) {
     return { ok: false, error: "Sin acceso." };
+  }
+  // El Responsable de Dominio solo gestiona evidencias de sus dominios asignados.
+  if (
+    session.user.role === ROLES.RESPONSABLE_DOMINIO &&
+    ev.respuesta?.diagnosticoDominio.responsableId !== session.user.id
+  ) {
+    return { ok: false, error: "Este dominio no está asignado a ti." };
   }
 
   if (ev.archivoPath) await eliminarArchivoEvidencia(ev.archivoPath);

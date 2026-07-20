@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { getDiagnosticoFull, madurezDeDiagnostico, getPreparacionInput } from "@/lib/data/diagnosticos";
 import { calcularPreparacion } from "@/lib/engines/certificacion";
 import { ESTADO_PREPARACION } from "@/lib/constants";
@@ -9,7 +9,7 @@ import { PreparacionBadge } from "@/components/badges";
 
 export default async function CertificacionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
   const madurez = madurezDeDiagnostico(diag);
   const input = await getPreparacionInput(id, diag, madurez.global);

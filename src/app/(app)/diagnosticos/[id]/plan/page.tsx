@@ -1,4 +1,4 @@
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireAccesoSecciones, esStaffP360 } from "@/lib/session";
 import { getDiagnosticoFull, getAcciones } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui";
@@ -10,7 +10,7 @@ const ORDEN_PRIO: Record<string, number> = { ALTA: 0, MEDIA: 1, BAJA: 2 };
 
 export default async function PlanPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
   const puedeValidar = esStaffP360(session.user.role);
 

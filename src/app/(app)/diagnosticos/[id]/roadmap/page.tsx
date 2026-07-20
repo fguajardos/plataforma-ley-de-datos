@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { getDiagnosticoFull, getAcciones } from "@/lib/data/diagnosticos";
 import { construirRoadmap, type AccionRoadmapInput } from "@/lib/engines/roadmap";
 import { PageHeader } from "@/components/PageHeader";
@@ -8,7 +8,7 @@ import { PrioridadBadge, EstadoAccionBadge } from "@/components/badges";
 
 export default async function RoadmapPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
   const acciones = await getAcciones(id);
 

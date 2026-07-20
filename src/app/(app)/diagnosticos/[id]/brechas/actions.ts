@@ -3,12 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
+import { ROLES } from "@/lib/constants";
 import { generarBrechas, type RespuestaBrechaInput } from "@/lib/engines/brechas";
 
 export type GenerarBrechasResult = { ok: boolean; count?: number; error?: string };
 
 export async function generarBrechasAction(diagnosticoId: string): Promise<GenerarBrechasResult> {
   const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    return { ok: false, error: "No tienes permiso para esta accion. Tu rol solo responde el cuestionario de sus dominios asignados." };
+  }
 
   const diag = await prisma.diagnostico.findUnique({
     where: { id: diagnosticoId },

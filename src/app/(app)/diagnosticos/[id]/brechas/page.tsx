@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { getDiagnosticoFull } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
@@ -11,7 +11,7 @@ const ORDEN_CRIT: Record<string, number> = { CRITICA: 0, ALTA: 1, MEDIA: 2, BAJA
 
 export default async function BrechasPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
 
   const brechas = await prisma.brecha.findMany({

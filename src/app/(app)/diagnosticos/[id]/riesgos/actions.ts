@@ -6,13 +6,16 @@ import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
 import { assertAccesoDiagnostico } from "@/lib/data/diagnosticos";
 import { generarRiesgos, type BrechaRiesgoInput } from "@/lib/engines/riesgos";
-import { nivelRiesgo, PROBABILIDAD, IMPACTO } from "@/lib/constants";
+import { nivelRiesgo, PROBABILIDAD, IMPACTO, ROLES } from "@/lib/constants";
 
 export type ActionResult = { ok: boolean; count?: number; error?: string };
 
 /** Genera riesgos a partir de las brechas del diagnóstico (reemplaza los existentes). */
 export async function generarRiesgosAction(diagnosticoId: string): Promise<ActionResult> {
   const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    return { ok: false, error: "No tienes permiso para esta accion. Tu rol solo responde el cuestionario de sus dominios asignados." };
+  }
   const diag = await assertAccesoDiagnostico(diagnosticoId, session);
   if (!diag) return { ok: false, error: "Sin acceso al diagnóstico." };
 
@@ -73,6 +76,9 @@ const editSchema = z.object({
 /** Edita un riesgo (consultor/analista ajusta probabilidad/impacto → recalcula nivel). */
 export async function editarRiesgoAction(input: z.input<typeof editSchema>): Promise<ActionResult> {
   const session = await requireSession();
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    return { ok: false, error: "No tienes permiso para esta accion. Tu rol solo responde el cuestionario de sus dominios asignados." };
+  }
   const parsed = editSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
   const { riesgoId, probabilidad, impacto, controlExistente, mitigacion } = parsed.data;

@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { getDiagnosticoFull, getRiesgos } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui";
@@ -10,7 +10,7 @@ const ORDEN_NIVEL: Record<string, number> = { CRITICO: 0, ALTO: 1, MEDIO: 2, BAJ
 
 export default async function RiesgosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
   const riesgos = await getRiesgos(id);
   riesgos.sort((a, b) => (ORDEN_NIVEL[a.nivel] ?? 9) - (ORDEN_NIVEL[b.nivel] ?? 9));

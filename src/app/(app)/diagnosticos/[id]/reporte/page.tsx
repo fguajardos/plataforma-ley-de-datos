@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { NIVEL_MADUREZ, TIPO_DIAGNOSTICO, ESTADO_DIAGNOSTICO } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { PrintButton } from "./PrintButton";
 
 export default async function ReportePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session);
   const madurez = madurezDeDiagnostico(diag);
 

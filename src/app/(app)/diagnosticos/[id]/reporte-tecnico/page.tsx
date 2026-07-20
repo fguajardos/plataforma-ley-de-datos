@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/session";
+import { requireAccesoSecciones } from "@/lib/session";
 import { ESCALA, type Valor } from "@/lib/constants";
 import {
   getDiagnosticoFull,
@@ -18,7 +18,7 @@ function valorLabel(v: string | null): string {
 
 export default async function ReporteTecnicoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await requireSession();
+  const session = await requireAccesoSecciones(id);
   const diag = await getDiagnosticoFull(id, session); // valida acceso
   const [dominios, riesgos, acciones, traza] = await Promise.all([
     getRespuestasPorDominio(id),
