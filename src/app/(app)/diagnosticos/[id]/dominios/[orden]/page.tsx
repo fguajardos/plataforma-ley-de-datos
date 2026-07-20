@@ -5,6 +5,7 @@ import { getDiagnosticoDominio } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { PreguntaItem } from "./PreguntaItem";
+import { EnviarDominio } from "./EnviarDominio";
 
 export default async function DominioPage({
   params,
@@ -55,6 +56,10 @@ export default async function DominioPage({
 
   const evidencias: string[] = JSON.parse(dd.dominio.evidenciasMinimas || "[]");
   const respondidas = dd.respuestas.filter((r) => r.valor != null).length;
+  // "Completas" = listas para enviar (el motor de guardado deja en PENDIENTE las que
+  // aún no cumplen la regla del comentario obligatorio).
+  const completas = dd.respuestas.filter((r) => r.estado !== "PENDIENTE").length;
+  const dominioEnviado = ["EN_VALIDACION", "COMPLETADO"].includes(dd.estado);
   const total = dd.respuestas.length;
 
   return (
@@ -127,6 +132,7 @@ export default async function DominioPage({
                 evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
               }}
               puedeValidar={puedeValidar}
+              bloqueado={dominioEnviado}
               evidencias={r.evidencias.map((e) => ({
                 id: e.id,
                 nombre: e.nombre,
@@ -139,6 +145,13 @@ export default async function DominioPage({
           ))}
         </CardContent>
       </Card>
+
+      <EnviarDominio
+        diagnosticoDominioId={dd.id}
+        totalPreguntas={total}
+        respondidas={completas}
+        enviado={dominioEnviado}
+      />
     </>
   );
 }

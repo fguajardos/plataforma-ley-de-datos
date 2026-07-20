@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { guardarRespuesta } from "./actions";
 import { VALORES, ESCALA, requiereComentario, type Valor } from "@/lib/constants";
-import { Badge, Button, Textarea, Input, Label } from "@/components/ui";
+import { Badge, Textarea, Input, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { EvidenciasPregunta, type EvidenciaVM } from "./EvidenciasPregunta";
 
@@ -18,43 +18,65 @@ type Props = {
   pregunta: { orden: number; texto: string; descripcion: string; evidenciaObligatoria: boolean };
   evidencias?: EvidenciaVM[];
   puedeValidar?: boolean;
+  /** Dominio ya enviado a validación: solo lectura, salvo que el consultor la haya observado. */
+  bloqueado?: boolean;
 };
 
 const LABEL_CORTO: Record<Valor, string> = {
   "0": "0", "1": "1", "2": "2", "3": "3", "4": "4", "5": "5", N_A: "N/A", OTRO: "Otro",
 };
 
-export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: Props) {
+/** Espera a que el usuario deje de escribir antes de guardar. */
+const RETARDO_GUARDADO = 800;
+
+export function PreguntaItem({
+  respuesta,
+  pregunta,
+  evidencias,
+  puedeValidar,
+  bloqueado,
+}: Props) {
   const [valor, setValor] = useState<string | null>(respuesta.valor);
   const [comentario, setComentario] = useState(respuesta.comentario ?? "");
   const [riesgo, setRiesgo] = useState(respuesta.riesgoIdentificado ?? "");
   const [estado, setEstado] = useState(respuesta.estado);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [guardado, setGuardado] = useState<"limpio" | "guardando" | "ok" | "error">("limpio");
+  const [error, setError] = useState<string | null>(null);
 
   const comentarioRequerido = requiereComentario(valor);
-  const dirty =
-    valor !== respuesta.valor ||
-    comentario !== (respuesta.comentario ?? "") ||
-    riesgo !== (respuesta.riesgoIdentificado ?? "");
+  // Solo lectura si el dominio ya se envió, salvo que el consultor haya observado ESTA pregunta.
+  const soloLectura = Boolean(bloqueado) && estado !== "OBSERVADA";
 
-  function onSave() {
-    setMsg(null);
-    startTransition(async () => {
+  // Guardado automático: se dispara cuando el usuario deja de editar. Acepta respuestas
+  // incompletas (quedan como borrador) para no perder nunca lo avanzado; la exigencia de
+  // completitud se aplica al enviar el dominio.
+  const primeraCarga = useRef(true);
+  useEffect(() => {
+    if (primeraCarga.current) {
+      primeraCarga.current = false;
+      return;
+    }
+    if (soloLectura || valor == null) return;
+
+    setGuardado("guardando");
+    const t = setTimeout(async () => {
       const res = await guardarRespuesta({
         respuestaId: respuesta.id,
-        valor: (valor ?? "0") as Valor,
+        valor: valor as Valor,
         comentario,
         riesgoIdentificado: riesgo,
       });
       if (res.ok) {
-        setEstado("RESPONDIDA");
-        setMsg({ ok: true, text: "Guardado" });
+        setEstado(!requiereComentario(valor) || comentario.trim() ? "RESPONDIDA" : "PENDIENTE");
+        setGuardado("ok");
+        setError(null);
       } else {
-        setMsg({ ok: false, text: res.error ?? "Error" });
+        setGuardado("error");
+        setError(res.error ?? "No se pudo guardar");
       }
-    });
-  }
+    }, RETARDO_GUARDADO);
+    return () => clearTimeout(t);
+  }, [valor, comentario, riesgo, respuesta.id, soloLectura]);
 
   return (
     <div className="border-b border-slate-100 px-5 py-5 last:border-0">
@@ -65,13 +87,21 @@ export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: 
         <div className="flex-1">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-medium text-slate-800">{pregunta.texto}</p>
-            {estado === "RESPONDIDA" && valor != null ? (
-              <Badge color="green">Respondida</Badge>
-            ) : estado === "VALIDADA" ? (
-              <Badge color="blue">Validada</Badge>
-            ) : (
-              <Badge color="slate">Pendiente</Badge>
-            )}
+            <span className="flex shrink-0 items-center gap-2">
+              {guardado === "guardando" && (
+                <span className="text-xs text-slate-400">Guardando…</span>
+              )}
+              {guardado === "ok" && <span className="text-xs text-green-600">Guardado</span>}
+              {estado === "OBSERVADA" ? (
+                <Badge color="orange">Observada</Badge>
+              ) : estado === "VALIDADA" ? (
+                <Badge color="blue">Validada</Badge>
+              ) : estado === "RESPONDIDA" && valor != null ? (
+                <Badge color="green">Respondida</Badge>
+              ) : (
+                <Badge color="slate">Pendiente</Badge>
+              )}
+            </span>
           </div>
           <p className="mt-1 text-xs text-slate-500">{pregunta.descripcion}</p>
           {pregunta.evidenciaObligatoria && (
@@ -86,11 +116,13 @@ export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: 
                 type="button"
                 title={`${ESCALA[v].estado}: ${ESCALA[v].descripcion}`}
                 onClick={() => setValor(v)}
+                disabled={soloLectura}
                 className={cn(
                   "h-9 min-w-9 rounded-lg border px-2 text-sm font-medium transition-colors",
                   valor === v
                     ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 bg-white text-slate-600 hover:border-brand-600 hover:text-brand-600"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-brand-600 hover:text-brand-600",
+                  soloLectura && "cursor-not-allowed opacity-60 hover:border-slate-300 hover:text-slate-600"
                 )}
               >
                 {LABEL_CORTO[v]}
@@ -113,8 +145,14 @@ export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: 
               rows={2}
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
+              disabled={soloLectura}
               placeholder={comentarioRequerido ? "Obligatorio: describe la situación actual" : "Opcional"}
             />
+            {comentarioRequerido && !comentario.trim() && !soloLectura && (
+              <p className="mt-1 text-xs text-orange-600">
+                Con esta respuesta el comentario es obligatorio para poder enviar el dominio.
+              </p>
+            )}
           </div>
 
           {/* Riesgo */}
@@ -124,20 +162,14 @@ export function PreguntaItem({ respuesta, pregunta, evidencias, puedeValidar }: 
               id={`r-${respuesta.id}`}
               value={riesgo}
               onChange={(e) => setRiesgo(e.target.value)}
+              disabled={soloLectura}
               placeholder="Opcional"
             />
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
-            <Button size="sm" onClick={onSave} disabled={pending || !dirty || valor == null}>
-              {pending ? "Guardando…" : "Guardar"}
-            </Button>
-            {msg && (
-              <span className={cn("text-xs", msg.ok ? "text-green-600" : "text-red-600")}>
-                {msg.text}
-              </span>
-            )}
-          </div>
+          {guardado === "error" && error && (
+            <p className="mt-3 text-xs text-red-600">{error}</p>
+          )}
 
           <EvidenciasPregunta
             respuestaId={respuesta.id}
