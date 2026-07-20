@@ -26,6 +26,9 @@ export default async function DiagnosticoDetallePage({
   );
   const avanceGlobal = totalPreguntas ? Math.round((respondidas / totalPreguntas) * 100) : 0;
 
+  // Dominios asignados al usuario de la sesión (para destacarlos y orientarlo).
+  const misDominios = dominiosIncluidos.filter((d) => d.responsable?.id === session.user.id);
+
   return (
     <>
       <DiagnosticoNav id={id} active="resumen" />
@@ -71,6 +74,34 @@ export default async function DiagnosticoDetallePage({
         </StatCard>
       </div>
 
+      {/* Aviso: qué dominios le tocan al usuario */}
+      {misDominios.length > 0 && (
+        <div className="mb-6 rounded-xl border border-brand-200 bg-brand-50 p-4">
+          <p className="text-sm font-semibold text-brand-700">
+            Te corresponde responder {misDominios.length === 1 ? "este dominio" : "estos dominios"}:
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {misDominios.map((d) => {
+              const res = madurez.dominios.find((m) => m.dominioId === d.dominioId);
+              return (
+                <Link
+                  key={d.id}
+                  href={`/diagnosticos/${id}/dominios/${d.dominio.orden}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-brand-300 bg-white px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
+                    {d.dominio.orden}
+                  </span>
+                  {d.dominio.nombre}
+                  <span className="text-xs text-slate-400">({res?.avance ?? 0}%)</span>
+                  <span aria-hidden>→</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Dominios */}
       <Card>
         <CardHeader>
@@ -80,8 +111,25 @@ export default async function DiagnosticoDetallePage({
           <ul className="divide-y divide-slate-100">
             {diag.dominios.map((d) => {
               const res = madurez.dominios.find((m) => m.dominioId === d.dominioId);
+              const esMio = d.incluido && d.responsable?.id === session.user.id;
+              if (!d.incluido) {
+                return (
+                  <li key={d.id} className="flex items-center gap-4 px-5 py-3 opacity-50">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm font-bold text-slate-400">
+                      {d.dominio.orden}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-500">{d.dominio.nombre}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">No aplica en este diagnóstico</p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+                      Excluido
+                    </span>
+                  </li>
+                );
+              }
               return (
-                <li key={d.id}>
+                <li key={d.id} className={esMio ? "bg-brand-50/60" : undefined}>
                   <Link
                     href={`/diagnosticos/${id}/dominios/${d.dominio.orden}`}
                     className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50"
@@ -90,7 +138,14 @@ export default async function DiagnosticoDetallePage({
                       {d.dominio.orden}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">{d.dominio.nombre}</p>
+                      <p className="truncate text-sm font-medium text-slate-800">
+                        {d.dominio.nombre}
+                        {esMio && (
+                          <span className="ml-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+                            Te corresponde
+                          </span>
+                        )}
+                      </p>
                       <div className="mt-1 flex items-center gap-2">
                         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
                           <div
@@ -99,6 +154,11 @@ export default async function DiagnosticoDetallePage({
                           />
                         </div>
                         <span className="text-xs text-slate-400">{res?.avance ?? 0}%</span>
+                        {d.responsable && (
+                          <span className="truncate text-xs text-slate-400">
+                            · Responsable: {d.responsable.nombre}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

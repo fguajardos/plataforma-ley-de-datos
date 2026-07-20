@@ -236,8 +236,12 @@ async function main() {
     },
   });
 
-  const dominios = await prisma.dominio.findMany({ orderBy: { orden: "asc" } });
+  const dominios = await prisma.dominio.findMany({
+    orderBy: { orden: "asc" },
+    include: { preguntas: { select: { id: true } } },
+  });
   let totalEvidencias = 0;
+  let totalRespuestas = 0;
   for (const dom of dominios) {
     const cfg = DOMINIOS[dom.orden];
     if (!cfg) continue;
@@ -250,6 +254,18 @@ async function main() {
         areaId: cfg.area ? areasPorNombre.get(cfg.area) ?? null : null,
       },
     });
+    // Una Respuesta PENDIENTE por pregunta del catálogo (igual que la UI al crear
+    // un diagnóstico). Sin esto, el cuestionario del dominio aparece vacío.
+    if (cfg.incluido && dom.preguntas.length > 0) {
+      await prisma.respuesta.createMany({
+        data: dom.preguntas.map((p) => ({
+          diagnosticoDominioId: dd.id,
+          preguntaId: p.id,
+          estado: "PENDIENTE",
+        })),
+      });
+      totalRespuestas += dom.preguntas.length;
+    }
     for (const ev of cfg.evidencias) {
       await prisma.evidencia.create({
         data: {
@@ -265,7 +281,7 @@ async function main() {
     console.log(`  ${dom.orden}. ${dom.nombre} — ${cfg.incluido ? `área: ${cfg.area ?? "—"}, ${cfg.evidencias.length} evidencias` : "EXCLUIDO"}`);
   }
 
-  console.log(`\nListo: empresa Honda, ${AREAS.length} áreas, 1 usuario, 1 diagnóstico, ${totalEvidencias} evidencias requeridas.`);
+  console.log(`\nListo: empresa Honda, ${AREAS.length} áreas, 1 usuario, 1 diagnóstico, ${totalEvidencias} evidencias requeridas, ${totalRespuestas} respuestas pendientes.`);
   console.log("Login Honda: admin@honda.cl / Demo1234");
 }
 

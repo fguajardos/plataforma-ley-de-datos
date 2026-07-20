@@ -31,6 +31,12 @@ export default async function DominioPage({
         subtitle={`${respondidas} de ${total} preguntas respondidas${dd.responsable ? ` · Responsable: ${dd.responsable.nombre}` : ""}`}
       />
 
+      {dd.responsable?.id === session.user.id && (
+        <div className="-mt-3 mb-5 inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white">
+          ✓ Este dominio te corresponde a ti
+        </div>
+      )}
+
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <Card className="md:col-span-2">
           <CardHeader>

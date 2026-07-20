@@ -31,7 +31,7 @@ export default async function DashboardPage() {
       ) : session.user.role === ROLES.ALTA_DIRECCION ? (
         <DashboardDireccion empresaId={session.user.empresaId} />
       ) : (
-        <DashboardEmpresa empresaId={session.user.empresaId} />
+        <DashboardEmpresa empresaId={session.user.empresaId} userId={session.user.id} />
       )}
     </>
   );
@@ -152,9 +152,19 @@ async function DashboardDireccion({ empresaId }: { empresaId: string | null }) {
 
 // ───────────── Admin Empresa / Responsable (doc §16.3) ─────────────
 
-async function DashboardEmpresa({ empresaId }: { empresaId: string | null }) {
+async function DashboardEmpresa({ empresaId, userId }: { empresaId: string | null; userId: string }) {
   const diag = await diagnosticoVigente(empresaId);
   if (!diag) return <Vacio />;
+
+  // Dominios donde este usuario es el responsable asignado (guía directa de su tarea).
+  const misDominios = await prisma.diagnosticoDominio.findMany({
+    where: { diagnosticoId: diag.id, incluido: true, responsableId: userId },
+    include: {
+      dominio: { select: { orden: true, nombre: true, _count: { select: { preguntas: true } } } },
+      respuestas: { select: { valor: true } },
+    },
+    orderBy: { dominio: { orden: "asc" } },
+  });
 
   const full = await getDiagnosticoFull(diag.id, { user: { id: "", role: ROLES.ADMIN_EMPRESA, empresaId } });
   const madurez = madurezDeDiagnostico(full);
@@ -173,6 +183,38 @@ async function DashboardEmpresa({ empresaId }: { empresaId: string | null }) {
 
   return (
     <>
+      {misDominios.length > 0 && (
+        <Card className="mb-6 border-brand-200 bg-brand-50">
+          <CardHeader>
+            <CardTitle>Tu tarea: {misDominios.length === 1 ? "el dominio que te corresponde responder" : "los dominios que te corresponde responder"}</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            {misDominios.map((d) => {
+              const tot = d.dominio._count.preguntas;
+              const resp = d.respuestas.filter((r) => r.valor != null).length;
+              return (
+                <Link
+                  key={d.id}
+                  href={`/diagnosticos/${diag.id}/dominios/${d.dominio.orden}`}
+                  className="inline-flex items-center gap-3 rounded-lg border border-brand-300 bg-white px-4 py-3 text-sm font-medium text-brand-700 hover:bg-brand-100"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-xs font-bold text-white">
+                    {d.dominio.orden}
+                  </span>
+                  <span>
+                    {d.dominio.nombre}
+                    <span className="block text-xs font-normal text-slate-500">
+                      {resp} de {tot} preguntas respondidas
+                    </span>
+                  </span>
+                  <span aria-hidden>→</span>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Kpi label="Madurez global" valor={fmt(madurez.global)} color={madurez.nivelGlobal ? NIVEL_MADUREZ[madurez.nivelGlobal].color : undefined} extra={<NivelBadge nivel={madurez.nivelGlobal} />} />
         <Kpi label="Avance" valor={`${avance}%`} />

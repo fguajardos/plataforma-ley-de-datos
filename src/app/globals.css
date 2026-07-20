@@ -5,6 +5,10 @@
   --color-foreground: #0f172a;
   --color-brand: #1e3a8a;
   --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-300: #93c5fd;
+  --color-brand-200: #bfdbfe;
+  --color-brand-100: #dbeafe;
   --color-brand-50: #eff6ff;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
