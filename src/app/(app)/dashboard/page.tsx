@@ -280,24 +280,28 @@ async function DashboardEmpresa({
         <Kpi label="Acciones correctivas" valor={accionesAbiertas} />
       </div>
 
-      <div className="mb-6">
-        <Card>
-          <CardContent className="py-4">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
-              Estado del proceso
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <EstadoDiagnosticoBadge estado={diag.estado} />
-              <span className="text-sm text-slate-600">
-                {ESTADO_DIAGNOSTICO_DESC[diag.estado as keyof typeof ESTADO_DIAGNOSTICO_DESC]}
-              </span>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">
-              Diagnóstico: {diag.nombre}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* "Estado del proceso" es seguimiento del diagnóstico completo (§16.3): le sirve al
+          Admin de Empresa, no al Responsable de Dominio, que solo responde lo suyo (§3.4). */}
+      {!esResponsable && (
+        <div className="mb-6">
+          <Card>
+            <CardContent className="py-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+                Estado del proceso
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <EstadoDiagnosticoBadge estado={diag.estado} />
+                <span className="text-sm text-slate-600">
+                  {ESTADO_DIAGNOSTICO_DESC[diag.estado as keyof typeof ESTADO_DIAGNOSTICO_DESC]}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Diagnóstico: {diag.nombre}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Accesos</CardTitle></CardHeader>

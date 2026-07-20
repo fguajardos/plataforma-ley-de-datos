@@ -52,34 +52,37 @@ export default async function DiagnosticoDetallePage({
         }
       />
 
-      {/* Resumen */}
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard label="Estado">
-          <EstadoDiagnosticoBadge estado={diag.estado} />
-        </StatCard>
-        <StatCard label="Madurez global">
-          <span
-            className="text-2xl font-bold"
-            style={{ color: madurez.nivelGlobal ? NIVEL_MADUREZ[madurez.nivelGlobal].color : "#94a3b8" }}
-          >
-            {fmt(madurez.global)}
-          </span>
-          <span className="ml-2">
-            <NivelBadge nivel={madurez.nivelGlobal} />
-          </span>
-        </StatCard>
-        <StatCard label="Avance">
-          <span className="text-2xl font-bold text-slate-800">{avanceGlobal}%</span>
-          <span className="ml-1 text-xs text-slate-400">
-            ({respondidas}/{totalPreguntas})
-          </span>
-        </StatCard>
-        <StatCard label="Consultor">
-          <span className="text-sm font-medium text-slate-700">
-            {diag.consultor?.nombre ?? "—"}
-          </span>
-        </StatCard>
-      </div>
+      {/* Resumen del diagnóstico completo: es gestión del proceso, no tarea del
+          Responsable de Dominio (§3.4), así que él no lo ve. */}
+      {!esResponsableRol && (
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <StatCard label="Estado">
+            <EstadoDiagnosticoBadge estado={diag.estado} />
+          </StatCard>
+          <StatCard label="Madurez global">
+            <span
+              className="text-2xl font-bold"
+              style={{ color: madurez.nivelGlobal ? NIVEL_MADUREZ[madurez.nivelGlobal].color : "#94a3b8" }}
+            >
+              {fmt(madurez.global)}
+            </span>
+            <span className="ml-2">
+              <NivelBadge nivel={madurez.nivelGlobal} />
+            </span>
+          </StatCard>
+          <StatCard label="Avance">
+            <span className="text-2xl font-bold text-slate-800">{avanceGlobal}%</span>
+            <span className="ml-1 text-xs text-slate-400">
+              ({respondidas}/{totalPreguntas})
+            </span>
+          </StatCard>
+          <StatCard label="Consultor">
+            <span className="text-sm font-medium text-slate-700">
+              {diag.consultor?.nombre ?? "—"}
+            </span>
+          </StatCard>
+        </div>
+      )}
 
       {/* Aviso: qué dominios le tocan al usuario */}
       {misDominios.length > 0 && (
