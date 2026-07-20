@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireSession, getCurrentUser } from "@/lib/session";
+import { CONSENTIMIENTO_VERSION } from "@/lib/consentimiento";
 import { ROLE_LABELS } from "@/lib/constants";
 import { navForRole } from "@/lib/nav";
 import { Sidebar } from "@/components/Sidebar";
@@ -13,6 +15,12 @@ import { signOutAction } from "./actions";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const user = await getCurrentUser();
+
+  // Gate bloqueante: sin consentimiento vigente no se accede a la plataforma.
+  if (user && user.consentimientoVersion !== CONSENTIMIENTO_VERSION) {
+    redirect("/consentimiento");
+  }
+
   const items = navForRole(session.user.role);
   const iniciales = (user?.nombre ?? "U")
     .split(" ")

@@ -68,8 +68,28 @@ model User {
   tourVisto    Boolean  @default(false) // tutorial inicial completado u omitido
   createdAt    DateTime @default(now())
 
+  // Consentimiento informado (Ley 21.719). Denormalizado para el gate de acceso;
+  // el registro probatorio completo vive en AceptacionConsentimiento.
+  consentimientoVersion String? // null = nunca ha aceptado
+  consentimientoFecha   DateTime?
+
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
   dominiosAsignados     DiagnosticoDominio[] @relation("responsable")
+  aceptaciones          AceptacionConsentimiento[]
+}
+
+// Registro inmutable de cada aceptación: acredita quién consintió, qué versión
+// del texto y cuándo (principio de responsabilidad / demostrabilidad).
+model AceptacionConsentimiento {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  version   String // versión del texto aceptado (ver src/lib/consentimiento.ts)
+  fecha     DateTime @default(now())
+  ip        String?
+  userAgent String?
+
+  @@index([userId])
 }
 
 // ───────────────────────── Catálogo LPDP ─────────────────────────
