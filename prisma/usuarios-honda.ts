@@ -1,11 +1,9 @@
 // Usuarios de Honda a partir de la columna "Roles participantes en Honda" del Excel
-// "Levantamiento por los 10 dominios de la LPDP - Honda.xlsx": un usuario por rol
-// (email cargo@honda.cl, rol RESPONSABLE_DOMINIO, pass inicial Demo1234) y asigna como
-// responsable de cada dominio del diagnóstico al PRIMER rol listado en el Excel.
+// "Levantamiento por los 10 dominios de la LPDP - Honda.xlsx": crea un usuario por rol
+// (email cargo@honda.cl, rol RESPONSABLE_DOMINIO, pass inicial Demo1234).
 //
-// El mapeo Excel→catálogo es el mismo de parametrizar-honda.ts (Excel 6 Incidentes →
-// catálogo 8; Excel 7 Terceros → catálogo 7; Excel 8 y 9 fusionados; catálogo 6 y 9
-// excluidos del diagnóstico).
+// La asignación rol↔dominio la hace prisma/participantes-honda.ts: cada dominio tiene
+// TODOS los roles que el Excel lista en su fila, sin responsable principal.
 //
 // Uso: npx tsx prisma/usuarios-honda.ts   (usa DATABASE_URL de .env → producción)
 
@@ -52,18 +50,6 @@ const CARGOS: { cargo: string; email: string }[] = [
   { cargo: "Comunicaciones Internas", email: "comunicacionesinternas@honda.cl" },
 ];
 
-// Responsable por dominio del catálogo = primer rol listado en la fila del Excel.
-const RESPONSABLE_POR_DOMINIO: Record<number, string> = {
-  1: "gerentegeneral@honda.cl", // Excel 1: Gobierno y responsabilidad
-  2: "comercial@honda.cl", // Excel 2: RAT
-  3: "legal@honda.cl", // Excel 3: Bases legales y consentimiento
-  4: "atencionclientes@honda.cl", // Excel 4: Derechos de los titulares
-  5: "ti@honda.cl", // Excel 5: Seguridad de la información
-  7: "compras@honda.cl", // Excel 7: Encargados y terceros
-  8: "ti@honda.cl", // Excel 6: Gestión de incidentes y brechas
-  10: "rrhh@honda.cl", // Excel 10: Cultura, capacitación y mejora continua
-};
-
 async function main() {
   const empresa = await prisma.empresa.findUnique({ where: { rut: RUT_HONDA } });
   if (!empresa) {
@@ -98,35 +84,10 @@ async function main() {
     console.log(`  creado: ${email} (${cargo})`);
   }
 
-  console.log("\nAsignando responsables por dominio del diagnóstico...");
-  const diagnostico = await prisma.diagnostico.findFirst({
-    where: { empresaId: empresa.id },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, nombre: true },
-  });
-  if (!diagnostico) {
-    console.error("Honda no tiene diagnóstico. Usuarios creados, pero sin asignación.");
-    process.exit(1);
-  }
-
-  const dds = await prisma.diagnosticoDominio.findMany({
-    where: { diagnosticoId: diagnostico.id },
-    include: { dominio: { select: { orden: true, nombre: true } } },
-  });
-
-  for (const dd of dds) {
-    const email = RESPONSABLE_POR_DOMINIO[dd.dominio.orden];
-    if (!email) continue; // dominios excluidos (6 y 9 del catálogo)
-    await prisma.diagnosticoDominio.update({
-      where: { id: dd.id },
-      data: { responsableId: idPorEmail.get(email)! },
-    });
-    console.log(`  ${dd.dominio.orden}. ${dd.dominio.nombre} → ${email}`);
-  }
-
   console.log(
-    `\nListo: ${creados} usuarios nuevos (${CARGOS.length - creados} ya existían), responsables asignados en "${diagnostico.nombre}". Pass inicial: ${PASSWORD}`
+    `\nListo: ${creados} usuarios nuevos (${CARGOS.length - creados} ya existían). Pass inicial: ${PASSWORD}`
   );
+  console.log("Asigna los participantes por dominio con prisma/participantes-honda.ts.");
 }
 
 main()

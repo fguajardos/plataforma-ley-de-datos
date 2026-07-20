@@ -74,7 +74,7 @@ model User {
   consentimientoFecha   DateTime?
 
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
-  dominiosAsignados     DiagnosticoDominio[] @relation("responsable")
+  participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
 }
 
@@ -147,18 +147,31 @@ model DiagnosticoDominio {
   diagnostico           Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
   dominioId             String
   dominio               Dominio     @relation(fields: [dominioId], references: [id])
-  responsableId         String?
-  responsable           User?       @relation("responsable", fields: [responsableId], references: [id])
   areaId                String?
   area                  Area?       @relation(fields: [areaId], references: [id], onDelete: SetNull)
   incluido              Boolean     @default(true)
   justificacionNoAplica String?
   estado                String      @default("PENDIENTE") // PENDIENTE, EN_EJECUCION, EN_VALIDACION, COMPLETADO
 
-  respuestas Respuesta[]
-  evidencias Evidencia[]
+  respuestas    Respuesta[]
+  evidencias    Evidencia[]
+  participantes ParticipanteDominio[]
 
   @@unique([diagnosticoId, dominioId])
+}
+
+// Roles que participan en un dominio del diagnóstico. Todos los participantes son
+// responsables por igual de responderlo: no hay un responsable principal.
+model ParticipanteDominio {
+  id                   String             @id @default(cuid())
+  diagnosticoDominioId String
+  diagnosticoDominio   DiagnosticoDominio @relation(fields: [diagnosticoDominioId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime           @default(now())
+
+  @@unique([diagnosticoDominioId, userId])
+  @@index([userId])
 }
 
 model Respuesta {

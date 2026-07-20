@@ -79,7 +79,7 @@ const configSchema = z.object({
     z.object({
       diagnosticoDominioId: z.string().min(1),
       incluido: z.boolean(),
-      responsableId: z.string().optional().default(""),
+      participantesIds: z.array(z.string()).optional().default([]),
       areaId: z.string().optional().default(""),
       justificacionNoAplica: z.string().max(1000).optional().default(""),
     })
@@ -113,11 +113,22 @@ export async function configurarDiagnosticoAction(input: z.input<typeof configSc
       where: { id: d.diagnosticoDominioId },
       data: {
         incluido: d.incluido,
-        responsableId: d.responsableId || null,
         areaId: d.areaId || null,
         justificacionNoAplica: d.justificacionNoAplica.trim() || null,
       },
     });
+
+    // Participantes: se deja el conjunto exactamente como viene del formulario.
+    const ids = [...new Set(d.participantesIds.filter(Boolean))];
+    await prisma.participanteDominio.deleteMany({
+      where: { diagnosticoDominioId: d.diagnosticoDominioId, userId: { notIn: ids } },
+    });
+    if (ids.length > 0) {
+      await prisma.participanteDominio.createMany({
+        data: ids.map((userId) => ({ diagnosticoDominioId: d.diagnosticoDominioId, userId })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   revalidatePath(`/diagnosticos/${data.diagnosticoId}`);

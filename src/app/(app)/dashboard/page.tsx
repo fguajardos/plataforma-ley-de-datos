@@ -156,9 +156,13 @@ async function DashboardEmpresa({ empresaId, userId }: { empresaId: string | nul
   const diag = await diagnosticoVigente(empresaId);
   if (!diag) return <Vacio />;
 
-  // Dominios donde este usuario es el responsable asignado (guía directa de su tarea).
+  // Dominios en los que este usuario participa (guía directa de su tarea).
   const misDominios = await prisma.diagnosticoDominio.findMany({
-    where: { diagnosticoId: diag.id, incluido: true, responsableId: userId },
+    where: {
+      diagnosticoId: diag.id,
+      incluido: true,
+      participantes: { some: { userId } },
+    },
     include: {
       dominio: { select: { orden: true, nombre: true, _count: { select: { preguntas: true } } } },
       respuestas: { select: { valor: true } },

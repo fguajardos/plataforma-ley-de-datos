@@ -141,9 +141,10 @@ async function main() {
       data: {
         diagnosticoId: diagnostico.id,
         dominioId: dominioIds[d.orden],
-        responsableId: responsable.id,
         areaId: areas.length ? areas[(d.orden - 1) % areas.length].id : null,
         estado: "PENDIENTE",
+        // Todos los participantes responden el dominio por igual (sin responsable principal).
+        participantes: { create: [{ userId: responsable.id }] },
       },
     });
     const preguntas = await prisma.pregunta.findMany({

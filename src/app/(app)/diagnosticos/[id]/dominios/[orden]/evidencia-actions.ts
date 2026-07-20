@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
+import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import {
   subirEvidencia,
   eliminarArchivoEvidencia,
@@ -41,7 +42,6 @@ export async function subirEvidenciaAction(formData: FormData): Promise<Evidenci
       diagnosticoDominio: {
         select: {
           id: true,
-          responsableId: true,
           diagnostico: { select: { id: true, empresaId: true } },
           dominio: { select: { orden: true } },
         },
@@ -53,10 +53,10 @@ export async function subirEvidenciaAction(formData: FormData): Promise<Evidenci
   if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) {
     return { ok: false, error: "Sin acceso." };
   }
-  // El Responsable de Dominio solo adjunta evidencias en sus dominios asignados.
+  // El Responsable de Dominio solo adjunta evidencias en los dominios en que participa.
   if (
     session.user.role === ROLES.RESPONSABLE_DOMINIO &&
-    respuesta.diagnosticoDominio.responsableId !== session.user.id
+    !(await esParticipanteDominio(respuesta.diagnosticoDominio.id, session.user.id))
   ) {
     return { ok: false, error: "Este dominio no está asignado a ti." };
   }
@@ -167,7 +167,7 @@ export async function eliminarEvidenciaAction(evidenciaId: string): Promise<Evid
       respuesta: {
         select: {
           diagnosticoDominio: {
-            select: { responsableId: true, diagnostico: { select: { id: true, empresaId: true } }, dominio: { select: { orden: true } } },
+            select: { id: true, diagnostico: { select: { id: true, empresaId: true } }, dominio: { select: { orden: true } } },
           },
         },
       },
@@ -178,10 +178,11 @@ export async function eliminarEvidenciaAction(evidenciaId: string): Promise<Evid
   if (!esStaffP360(session.user.role) && diag?.empresaId !== session.user.empresaId) {
     return { ok: false, error: "Sin acceso." };
   }
-  // El Responsable de Dominio solo gestiona evidencias de sus dominios asignados.
+  // El Responsable de Dominio solo gestiona evidencias de los dominios en que participa.
+  const ddId = ev.respuesta?.diagnosticoDominio.id;
   if (
     session.user.role === ROLES.RESPONSABLE_DOMINIO &&
-    ev.respuesta?.diagnosticoDominio.responsableId !== session.user.id
+    !(ddId && (await esParticipanteDominio(ddId, session.user.id)))
   ) {
     return { ok: false, error: "Este dominio no está asignado a ti." };
   }

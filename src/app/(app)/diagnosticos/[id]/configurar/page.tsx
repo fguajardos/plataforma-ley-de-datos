@@ -14,7 +14,7 @@ export default async function ConfigurarPage({ params }: { params: Promise<{ id:
   const [usuarios, areas] = await Promise.all([
     prisma.user.findMany({
       where: { empresaId: diag.empresaId, activo: true },
-      select: { id: true, nombre: true },
+      select: { id: true, nombre: true, cargo: true },
       orderBy: { nombre: "asc" },
     }),
     prisma.area.findMany({
@@ -29,7 +29,7 @@ export default async function ConfigurarPage({ params }: { params: Promise<{ id:
     orden: d.dominio.orden,
     nombre: d.dominio.nombre,
     incluido: d.incluido,
-    responsableId: d.responsable?.id ?? "",
+    participantesIds: d.participantes.map((p) => p.userId),
     areaId: d.area?.id ?? "",
     justificacionNoAplica: d.justificacionNoAplica ?? "",
   }));
@@ -39,18 +39,18 @@ export default async function ConfigurarPage({ params }: { params: Promise<{ id:
       <DiagnosticoNav id={id} active="configurar" />
       <PageHeader
         title="Configurar diagnóstico"
-        subtitle={`${diag.nombre} · selecciona dominios, responsables y áreas`}
+        subtitle={`${diag.nombre} · selecciona dominios, participantes y áreas`}
       />
       <ConfigurarForm
         diagnosticoId={id}
         dominios={dominios}
-        responsables={usuarios}
+        usuarios={usuarios}
         areas={areas}
       />
       {usuarios.length === 0 && (
         <Card className="mt-4">
           <CardContent className="py-4 text-sm text-slate-500">
-            Aún no hay usuarios responsables en esta empresa. Créalos en “Mi Empresa”.
+            Aún no hay usuarios en esta empresa. Créalos en “Mi Empresa”.
           </CardContent>
         </Card>
       )}

@@ -16,8 +16,11 @@ export default async function DominioPage({
   const { diag, dd } = await getDiagnosticoDominio(id, Number(orden), session);
   const puedeValidar = esStaffP360(session.user.role);
 
-  // El Responsable de Dominio solo puede entrar a los dominios que tiene asignados.
-  if (session.user.role === ROLES.RESPONSABLE_DOMINIO && dd.responsable?.id !== session.user.id) {
+  const participantes = dd.participantes.map((p) => p.user);
+  const participo = participantes.some((u) => u.id === session.user.id);
+
+  // El Responsable de Dominio solo puede entrar a los dominios en los que participa.
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO && !participo) {
     return (
       <>
         <div className="mb-2">
@@ -30,10 +33,13 @@ export default async function DominioPage({
           <CardContent className="py-10 text-center">
             <p className="text-sm font-medium text-slate-700">
               Este dominio no está asignado a ti
-              {dd.responsable ? ` — su responsable es ${dd.responsable.nombre}` : ""}.
+              {participantes.length > 0
+                ? ` — participan ${participantes.map((u) => u.nombre).join(", ")}`
+                : ""}
+              .
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Solo puedes responder los dominios donde figuras como responsable.
+              Solo puedes responder los dominios en los que figuras como participante.
             </p>
             <Link
               href={`/diagnosticos/${id}`}
@@ -60,10 +66,14 @@ export default async function DominioPage({
       </div>
       <PageHeader
         title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`}
-        subtitle={`${respondidas} de ${total} preguntas respondidas${dd.responsable ? ` · Responsable: ${dd.responsable.nombre}` : ""}`}
+        subtitle={`${respondidas} de ${total} preguntas respondidas${
+          participantes.length > 0
+            ? ` · Participantes: ${participantes.map((u) => u.nombre).join(", ")}`
+            : ""
+        }`}
       />
 
-      {dd.responsable?.id === session.user.id && (
+      {participo && (
         <div className="-mt-3 mb-5 inline-flex items-center gap-2 rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white">
           ✓ Este dominio te corresponde a ti
         </div>

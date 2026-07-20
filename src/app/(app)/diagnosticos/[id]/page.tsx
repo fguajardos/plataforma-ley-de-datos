@@ -27,7 +27,9 @@ export default async function DiagnosticoDetallePage({
   const avanceGlobal = totalPreguntas ? Math.round((respondidas / totalPreguntas) * 100) : 0;
 
   // Dominios asignados al usuario de la sesión (para destacarlos y orientarlo).
-  const misDominios = dominiosIncluidos.filter((d) => d.responsable?.id === session.user.id);
+  const misDominios = dominiosIncluidos.filter((d) =>
+    d.participantes.some((p) => p.userId === session.user.id)
+  );
   // El Responsable de Dominio solo responde su cuestionario: sin pestañas de
   // gestión, sin Configurar y sin entrar a dominios ajenos.
   const esResponsableRol = session.user.role === ROLES.RESPONSABLE_DOMINIO;
@@ -116,7 +118,8 @@ export default async function DiagnosticoDetallePage({
           <ul className="divide-y divide-slate-100">
             {diag.dominios.map((d) => {
               const res = madurez.dominios.find((m) => m.dominioId === d.dominioId);
-              const esMio = d.incluido && d.responsable?.id === session.user.id;
+              const esMio =
+                d.incluido && d.participantes.some((p) => p.userId === session.user.id);
               if (!d.incluido) {
                 return (
                   <li key={d.id} className="flex items-center gap-4 px-5 py-3 opacity-50">
@@ -157,12 +160,12 @@ export default async function DiagnosticoDetallePage({
                         />
                       </div>
                       <span className="text-xs text-slate-400">{res?.avance ?? 0}%</span>
-                      {d.responsable && (
-                        <span className="truncate text-xs text-slate-400">
-                          · Responsable: {d.responsable.nombre}
-                        </span>
-                      )}
                     </div>
+                    {d.participantes.length > 0 && (
+                      <p className="mt-1 truncate text-xs text-slate-400">
+                        Participantes: {d.participantes.map((p) => p.user.nombre).join(", ")}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-slate-700">{fmt(res?.promedio ?? null)}</span>
@@ -175,7 +178,11 @@ export default async function DiagnosticoDetallePage({
                   {bloqueado ? (
                     <div
                       className="flex cursor-not-allowed items-center gap-4 px-5 py-3 opacity-60"
-                      title={`Dominio a cargo de ${d.responsable?.nombre ?? "otro responsable"}`}
+                      title={
+                        d.participantes.length > 0
+                          ? `Dominio a cargo de ${d.participantes.map((p) => p.user.nombre).join(", ")}`
+                          : "Dominio sin participantes asignados"
+                      }
                     >
                       {contenido}
                     </div>

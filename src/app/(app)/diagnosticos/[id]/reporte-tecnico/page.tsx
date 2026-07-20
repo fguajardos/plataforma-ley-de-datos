@@ -54,7 +54,9 @@ export default async function ReporteTecnicoPage({ params }: { params: Promise<{
                   D{dd.dominio.orden} · {dd.dominio.nombre}
                   <span className="ml-2 text-xs font-normal text-slate-400">
                     {dd.area ? `Área: ${dd.area.nombre}` : "Sin área"}
-                    {dd.responsable ? ` · Resp.: ${dd.responsable.nombre}` : ""}
+                    {dd.participantes.length > 0
+                      ? ` · Participantes: ${dd.participantes.map((p) => p.user.nombre).join(", ")}`
+                      : ""}
                   </span>
                 </h3>
                 <table className="w-full text-xs">

@@ -18,6 +18,18 @@ export async function assertAccesoDiagnostico(diagnosticoId: string, session: Se
   return diag;
 }
 
+/**
+ * True si el usuario participa del dominio. Todos los participantes de un dominio son
+ * responsables por igual de responderlo: no hay responsable principal.
+ */
+export async function esParticipanteDominio(diagnosticoDominioId: string, userId: string) {
+  const p = await prisma.participanteDominio.findUnique({
+    where: { diagnosticoDominioId_userId: { diagnosticoDominioId, userId } },
+    select: { id: true },
+  });
+  return p !== null;
+}
+
 /** Lista de diagnósticos visibles para la sesión (P360 ve todo; resto su empresa). */
 export async function listarDiagnosticos(session: SessionLike) {
   return prisma.diagnostico.findMany({
@@ -42,7 +54,10 @@ export async function getDiagnosticoFull(id: string, session: SessionLike) {
         orderBy: { dominio: { orden: "asc" } },
         include: {
           dominio: { include: { _count: { select: { preguntas: true } } } },
-          responsable: { select: { id: true, nombre: true } },
+          participantes: {
+            include: { user: { select: { id: true, nombre: true, cargo: true } } },
+            orderBy: { user: { nombre: "asc" } },
+          },
           area: { select: { id: true, nombre: true } },
           respuestas: { select: { id: true, valor: true, estado: true } },
         },
@@ -124,7 +139,7 @@ export async function getRespuestasPorDominio(diagnosticoId: string) {
     orderBy: { dominio: { orden: "asc" } },
     include: {
       dominio: { select: { orden: true, nombre: true } },
-      responsable: { select: { nombre: true } },
+      participantes: { include: { user: { select: { nombre: true } } } },
       area: { select: { nombre: true } },
       respuestas: {
         orderBy: { pregunta: { orden: "asc" } },
@@ -209,7 +224,10 @@ export async function getDiagnosticoDominio(
     where: { diagnosticoId, dominio: { orden: dominioOrden } },
     include: {
       dominio: true,
-      responsable: { select: { id: true, nombre: true } },
+      participantes: {
+        include: { user: { select: { id: true, nombre: true, cargo: true } } },
+        orderBy: { user: { nombre: "asc" } },
+      },
       respuestas: {
         include: { pregunta: true, evidencias: true },
         orderBy: { pregunta: { orden: "asc" } },
