@@ -36,8 +36,8 @@ export default async function ConsentimientoPage() {
             </p>
             <p className="mt-3 text-sm text-slate-600">
               {esActualizacion
-                ? "Actualizamos este documento. Para seguir usando la plataforma, revise los cambios y otorgue nuevamente su consentimiento."
-                : `Hola ${user.nombre.split(" ")[0]}: antes de usar la plataforma por primera vez, necesitamos su consentimiento. Predicamos con el ejemplo.`}
+                ? "Este documento fue actualizado. Para continuar utilizando la plataforma, le solicitamos revisar su contenido y otorgar nuevamente su consentimiento."
+                : "Antes de utilizar la plataforma por primera vez, le solicitamos revisar la siguiente información y otorgar su consentimiento para el tratamiento de sus datos personales."}
             </p>
           </div>
 
