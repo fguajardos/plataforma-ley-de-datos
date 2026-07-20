@@ -31,7 +31,11 @@ export default async function DashboardPage() {
       ) : session.user.role === ROLES.ALTA_DIRECCION ? (
         <DashboardDireccion empresaId={session.user.empresaId} />
       ) : (
-        <DashboardEmpresa empresaId={session.user.empresaId} userId={session.user.id} />
+        <DashboardEmpresa
+          empresaId={session.user.empresaId}
+          userId={session.user.id}
+          role={session.user.role}
+        />
       )}
     </>
   );
@@ -150,9 +154,26 @@ async function DashboardDireccion({ empresaId }: { empresaId: string | null }) {
   );
 }
 
-// ───────────── Admin Empresa / Responsable (doc §16.3) ─────────────
+// ───────────── Vista Empresa (doc §16.3) ─────────────
+//
+// Una sola vista para el lado cliente (Admin Empresa y Responsable de Dominio), como
+// define el §16.3. Muestra: tareas asignadas, preguntas pendientes, evidencias
+// solicitadas, observaciones del consultor, acciones correctivas y estado del proceso.
+// Madurez global y brechas NO van aquí: el documento las sitúa en el §16.1 (Alta Dirección).
+//
+// Los indicadores de tarea se calculan sobre lo ASIGNADO a quien mira ("tareas asignadas"
+// del §16.3): el Responsable de Dominio ve lo suyo; el Admin de Empresa, que no participa
+// de dominios puntuales, ve el diagnóstico completo.
 
-async function DashboardEmpresa({ empresaId, userId }: { empresaId: string | null; userId: string }) {
+async function DashboardEmpresa({
+  empresaId,
+  userId,
+  role,
+}: {
+  empresaId: string | null;
+  userId: string;
+  role: Role;
+}) {
   const diag = await diagnosticoVigente(empresaId);
   if (!diag) return <Vacio />;
 
@@ -171,19 +192,40 @@ async function DashboardEmpresa({ empresaId, userId }: { empresaId: string | nul
   });
 
   const full = await getDiagnosticoFull(diag.id, { user: { id: "", role: ROLES.ADMIN_EMPRESA, empresaId } });
-  const madurez = madurezDeDiagnostico(full);
   const incluidos = full.dominios.filter((d) => d.incluido);
-  const total = incluidos.reduce((a, d) => a + d.dominio._count.preguntas, 0);
-  const respondidas = incluidos.reduce((a, d) => a + d.respuestas.filter((r) => r.valor != null).length, 0);
-  const avance = total ? Math.round((respondidas / total) * 100) : 0;
 
-  const [brechasCount, brechasCriticas, evidenciasObservadas, respuestasObservadas, accionesAbiertas] = await Promise.all([
-    prisma.brecha.count({ where: { diagnosticoId: diag.id } }),
-    prisma.brecha.count({ where: { diagnosticoId: diag.id, criticidad: "CRITICA" } }),
-    prisma.evidencia.count({ where: { estado: "OBSERVADA", respuesta: { diagnosticoDominio: { diagnosticoId: diag.id } } } }),
-    prisma.respuesta.count({ where: { estado: "OBSERVADA", diagnosticoDominio: { diagnosticoId: diag.id } } }),
-    prisma.accionTratamiento.count({ where: { diagnosticoId: diag.id, estado: { not: "CERRADA" } } }),
-  ]);
+  // Alcance: el Responsable de Dominio responde por los dominios que tiene asignados;
+  // el resto del lado empresa (Admin Empresa) responde por el diagnóstico completo.
+  const esResponsable = role === ROLES.RESPONSABLE_DOMINIO;
+  const alcanceIds = esResponsable
+    ? misDominios.map((d) => d.id)
+    : incluidos.map((d) => d.id);
+  const enAlcance = { id: { in: alcanceIds } };
+
+  const totalAlcance = esResponsable
+    ? misDominios.reduce((a, d) => a + d.dominio._count.preguntas, 0)
+    : incluidos.reduce((a, d) => a + d.dominio._count.preguntas, 0);
+  const respondidasAlcance = esResponsable
+    ? misDominios.reduce((a, d) => a + d.respuestas.filter((r) => r.valor != null).length, 0)
+    : incluidos.reduce((a, d) => a + d.respuestas.filter((r) => r.valor != null).length, 0);
+  const avance = totalAlcance ? Math.round((respondidasAlcance / totalAlcance) * 100) : 0;
+
+  const [evidenciasSolicitadas, evidenciasObservadas, respuestasObservadas, accionesAbiertas] =
+    await Promise.all([
+      // Evidencias del checklist aún sin archivo cargado.
+      prisma.evidencia.count({
+        where: { estado: "PENDIENTE", archivoPath: null, diagnosticoDominio: enAlcance },
+      }),
+      prisma.evidencia.count({
+        where: { estado: "OBSERVADA", respuesta: { diagnosticoDominio: enAlcance } },
+      }),
+      prisma.respuesta.count({ where: { estado: "OBSERVADA", diagnosticoDominio: enAlcance } }),
+      prisma.accionTratamiento.count({
+        where: { diagnosticoId: diag.id, estado: { not: "CERRADA" } },
+      }),
+    ]);
+  const observaciones = respuestasObservadas + evidenciasObservadas;
+  const tareasAsignadas = esResponsable ? misDominios.length : incluidos.length;
 
   return (
     <>
@@ -219,41 +261,44 @@ async function DashboardEmpresa({ empresaId, userId }: { empresaId: string | nul
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Kpi label="Madurez global" valor={fmt(madurez.global)} color={madurez.nivelGlobal ? NIVEL_MADUREZ[madurez.nivelGlobal].color : undefined} extra={<NivelBadge nivel={madurez.nivelGlobal} />} />
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <Kpi label={esResponsable ? "Mis dominios" : "Tareas asignadas"} valor={tareasAsignadas} />
+        <Kpi label="Preguntas pend." valor={totalAlcance - respondidasAlcance} />
         <Kpi label="Avance" valor={`${avance}%`} />
-        <Kpi label="Preguntas pend." valor={total - respondidas} />
-        <Kpi label="Brechas" valor={brechasCount} />
-        <Kpi label="Brechas críticas" valor={brechasCriticas} color={brechasCriticas ? "#dc2626" : undefined} />
-        <Kpi label="Acciones abiertas" valor={accionesAbiertas} />
-        <Kpi label="Observaciones" valor={respuestasObservadas} color={respuestasObservadas ? "#f97316" : undefined} />
-        <Kpi label="Evid. observadas" valor={evidenciasObservadas} color={evidenciasObservadas ? "#f97316" : undefined} />
+        <Kpi label="Evid. solicitadas" valor={evidenciasSolicitadas} />
+        <Kpi
+          label="Observaciones"
+          valor={observaciones}
+          color={observaciones ? "#f97316" : undefined}
+        />
+        <Kpi label="Acciones correctivas" valor={accionesAbiertas} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="mb-6">
         <Card>
-          <CardHeader><CardTitle>Dominios críticos</CardTitle></CardHeader>
-          <CardContent className="p-0">
-            <ul className="divide-y divide-slate-100">
-              {madurez.criticos.slice(0, 5).map((d) => (
-                <li key={d.dominioId} className="flex items-center justify-between px-5 py-3">
-                  <span className="text-sm text-slate-700">D{d.orden} · {d.nombre}</span>
-                  <span className="flex items-center gap-2"><span className="text-sm font-semibold">{fmt(d.promedio)}</span><NivelBadge nivel={d.nivel} /></span>
-                </li>
-              ))}
-              {madurez.criticos.length === 0 && <li className="px-5 py-8 text-center text-sm text-slate-400">Sin dominios críticos evaluados.</li>}
-            </ul>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle>Tareas</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            <Acceso href={`/diagnosticos/${diag.id}`} label="Continuar diagnóstico →" />
-            <Acceso href={`/diagnosticos/${diag.id}/plan`} label="Ver plan de tratamiento →" />
-            <Acceso href={`/diagnosticos/${diag.id}/brechas`} label="Ver brechas →" />
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              Estado del proceso
+            </span>
+            <EstadoDiagnosticoBadge estado={diag.estado} />
+            <span className="text-sm text-slate-500">{diag.nombre}</span>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Accesos</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Acceso href={`/diagnosticos/${diag.id}`} label="Continuar diagnóstico →" />
+          {/* El Responsable de Dominio se limita a responder su cuestionario (§3.4). */}
+          {!esResponsable && (
+            <>
+              <Acceso href={`/diagnosticos/${diag.id}/plan`} label="Ver plan de tratamiento →" />
+              <Acceso href={`/diagnosticos/${diag.id}/brechas`} label="Ver brechas →" />
+            </>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
@@ -265,7 +310,7 @@ async function diagnosticoVigente(empresaId: string | null) {
   return prisma.diagnostico.findFirst({
     where: { empresaId },
     orderBy: { createdAt: "desc" },
-    select: { id: true },
+    select: { id: true, nombre: true, estado: true },
   });
 }
 

@@ -23,14 +23,6 @@ export default async function LoginPage() {
           <LoginForm />
         </div>
 
-        <div className="mt-6 rounded-lg border border-slate-200 bg-white/60 p-4 text-xs text-slate-500">
-          <p className="mb-1 font-semibold text-slate-600">Usuarios de prueba (contraseña: Demo1234)</p>
-          <ul className="space-y-0.5">
-            <li>admin@procesos360.cl · consultor@procesos360.cl</li>
-            <li>admin@empresademo.cl · responsable@empresademo.cl · direccion@empresademo.cl</li>
-          </ul>
-        </div>
-
         <p className="mt-6 text-center text-xs text-slate-400">
           <Link href="/">Procesos360 © 2026</Link>
         </p>
