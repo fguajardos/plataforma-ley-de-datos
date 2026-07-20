@@ -2,6 +2,7 @@ import { requireSession, getCurrentUser } from "@/lib/session";
 import { ROLE_LABELS } from "@/lib/constants";
 import { navForRole } from "@/lib/nav";
 import { Sidebar } from "@/components/Sidebar";
+import { ChatWidget } from "@/components/ChatWidget";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { signOutAction } from "./actions";
@@ -54,6 +55,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
       </main>
+
+      <ChatWidget />
     </div>
   );
 }
