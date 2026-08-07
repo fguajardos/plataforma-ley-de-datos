@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
 import { assertAccesoDiagnostico } from "@/lib/data/diagnosticos";
-import { TIPO_DIAGNOSTICO, ESTADO_DIAGNOSTICO } from "@/lib/constants";
+import { TIPO_DIAGNOSTICO, ESTADO_DIAGNOSTICO, ROLES_P360 } from "@/lib/constants";
 
 export type CrearResult = { ok: boolean; id?: string; error?: string };
 export type ConfigResult = { ok: boolean; error?: string };
@@ -29,6 +29,12 @@ export async function crearDiagnosticoAction(input: z.input<typeof crearSchema>)
   // Acceso: staff P360 crea para cualquier empresa; ADMIN_EMPRESA solo la suya.
   if (!esStaffP360(session.user.role) && empresaId !== session.user.empresaId) {
     return { ok: false, error: "Sin acceso a esa empresa." };
+  }
+
+  // El consultor asignado debe existir y ser staff P360; no cualquier userId del cliente.
+  if (consultorId) {
+    const ok = await prisma.user.count({ where: { id: consultorId, role: { in: ROLES_P360 } } });
+    if (ok === 0) return { ok: false, error: "El consultor asignado no es parte del staff Procesos360." };
   }
 
   const dominios = await prisma.dominio.findMany({
@@ -96,40 +102,81 @@ export async function configurarDiagnosticoAction(input: z.input<typeof configSc
   const diag = await assertAccesoDiagnostico(data.diagnosticoId, session);
   if (!diag) return { ok: false, error: "Sin acceso al diagnóstico." };
 
-  await prisma.diagnostico.update({
-    where: { id: data.diagnosticoId },
-    data: {
-      ...(data.nombre ? { nombre: data.nombre } : {}),
-      ...(data.tipo ? { tipo: data.tipo } : {}),
-      ...(data.fechaInicio !== undefined ? { fechaInicio: data.fechaInicio ? new Date(data.fechaInicio) : null } : {}),
-      ...(data.fechaCierre !== undefined ? { fechaCierre: data.fechaCierre ? new Date(data.fechaCierre) : null } : {}),
-      ...(data.consultorId !== undefined ? { consultorId: data.consultorId || null } : {}),
-      estado: diag.estado === "BORRADOR" ? "CONFIGURADO" : diag.estado,
-    },
+  // El acceso valida `diagnosticoId`, no los IDs del array de dominios: sin este chequeo se
+  // podrían configurar dominios de OTRO diagnóstico (y otra empresa) — IDOR de escritura.
+  const ddIds = data.dominios.map((d) => d.diagnosticoDominioId);
+  if (new Set(ddIds).size !== ddIds.length) return { ok: false, error: "Dominios duplicados." };
+  const ddValidos = await prisma.diagnosticoDominio.count({
+    where: { id: { in: ddIds }, diagnosticoId: data.diagnosticoId },
   });
-
-  for (const d of data.dominios) {
-    await prisma.diagnosticoDominio.update({
-      where: { id: d.diagnosticoDominioId },
-      data: {
-        incluido: d.incluido,
-        areaId: d.areaId || null,
-        justificacionNoAplica: d.justificacionNoAplica.trim() || null,
-      },
-    });
-
-    // Participantes: se deja el conjunto exactamente como viene del formulario.
-    const ids = [...new Set(d.participantesIds.filter(Boolean))];
-    await prisma.participanteDominio.deleteMany({
-      where: { diagnosticoDominioId: d.diagnosticoDominioId, userId: { notIn: ids } },
-    });
-    if (ids.length > 0) {
-      await prisma.participanteDominio.createMany({
-        data: ids.map((userId) => ({ diagnosticoDominioId: d.diagnosticoDominioId, userId })),
-        skipDuplicates: true,
-      });
-    }
+  if (ddValidos !== ddIds.length) {
+    return { ok: false, error: "Dominios inválidos para este diagnóstico." };
   }
+
+  // Participantes y áreas deben pertenecer a la empresa del diagnóstico, no a la del solicitante.
+  const participanteIds = [...new Set(data.dominios.flatMap((d) => d.participantesIds).filter(Boolean))];
+  const areaIds = [...new Set(data.dominios.map((d) => d.areaId).filter(Boolean))];
+  const [participantesOk, areasOk, consultorOk] = await Promise.all([
+    participanteIds.length
+      ? prisma.user.count({ where: { id: { in: participanteIds }, empresaId: diag.empresaId } })
+      : 0,
+    areaIds.length
+      ? prisma.area.count({ where: { id: { in: areaIds }, empresaId: diag.empresaId } })
+      : 0,
+    data.consultorId
+      ? prisma.user.count({ where: { id: data.consultorId, role: { in: ROLES_P360 } } })
+      : 0,
+  ]);
+  if (participantesOk !== participanteIds.length) {
+    return { ok: false, error: "Un participante no pertenece a la empresa del diagnóstico." };
+  }
+  if (areasOk !== areaIds.length) {
+    return { ok: false, error: "Un área no pertenece a la empresa del diagnóstico." };
+  }
+  if (data.consultorId && consultorOk === 0) {
+    return { ok: false, error: "El consultor asignado no es parte del staff Procesos360." };
+  }
+
+  // Atómico: la configuración del alcance no puede quedar aplicada a medias.
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.diagnostico.update({
+        where: { id: data.diagnosticoId },
+        data: {
+          ...(data.nombre ? { nombre: data.nombre } : {}),
+          ...(data.tipo ? { tipo: data.tipo } : {}),
+          ...(data.fechaInicio !== undefined ? { fechaInicio: data.fechaInicio ? new Date(data.fechaInicio) : null } : {}),
+          ...(data.fechaCierre !== undefined ? { fechaCierre: data.fechaCierre ? new Date(data.fechaCierre) : null } : {}),
+          ...(data.consultorId !== undefined ? { consultorId: data.consultorId || null } : {}),
+          estado: diag.estado === "BORRADOR" ? "CONFIGURADO" : diag.estado,
+        },
+      });
+
+      for (const d of data.dominios) {
+        // Scope por diagnóstico repetido a propósito: defensa en profundidad.
+        await tx.diagnosticoDominio.updateMany({
+          where: { id: d.diagnosticoDominioId, diagnosticoId: data.diagnosticoId },
+          data: {
+            incluido: d.incluido,
+            areaId: d.areaId || null,
+            justificacionNoAplica: d.justificacionNoAplica.trim() || null,
+          },
+        });
+
+        const ids = [...new Set(d.participantesIds.filter(Boolean))];
+        await tx.participanteDominio.deleteMany({
+          where: { diagnosticoDominioId: d.diagnosticoDominioId, userId: { notIn: ids } },
+        });
+        if (ids.length > 0) {
+          await tx.participanteDominio.createMany({
+            data: ids.map((userId) => ({ diagnosticoDominioId: d.diagnosticoDominioId, userId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    },
+    { timeout: 20000, maxWait: 10000 }
+  );
 
   revalidatePath(`/diagnosticos/${data.diagnosticoId}`);
   revalidatePath(`/diagnosticos/${data.diagnosticoId}/configurar`);
