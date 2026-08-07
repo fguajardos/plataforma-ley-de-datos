@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSession, esStaffP360 } from "@/lib/session";
-import { ROLES } from "@/lib/constants";
+import { ROLES, respuestaCompleta } from "@/lib/constants";
 import { getDiagnosticoDominio } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -52,9 +52,16 @@ export default async function DominioPage({
 
   const evidencias: string[] = JSON.parse(dd.dominio.evidenciasMinimas || "[]");
   const respondidas = dd.respuestas.filter((r) => r.valor != null).length;
-  // "Completas" = listas para enviar (el motor de guardado deja en PENDIENTE las que
-  // aún no cumplen la regla del comentario obligatorio).
-  const completas = dd.respuestas.filter((r) => r.estado !== "PENDIENTE").length;
+  // "Completas" = listas para enviar: valor + comentario cuando aplica + evidencia cuando es
+  // obligatoria en 3/4/5. Tener solo un valor NO cuenta como completa.
+  const completas = dd.respuestas.filter((r) =>
+    respuestaCompleta({
+      valor: r.valor,
+      comentario: r.comentario,
+      evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+      tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+    })
+  ).length;
   const dominioEnviado = ["EN_VALIDACION", "COMPLETADO"].includes(dd.estado);
   const total = dd.respuestas.length;
   // Participantes que ya aportaron al menos una respuesta (contador del encabezado).
@@ -73,7 +80,9 @@ export default async function DominioPage({
       </div>
       <PageHeader
         title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`}
-        subtitle={`${respondidas} de ${total} preguntas respondidas${
+        subtitle={`${completas} de ${total} preguntas completas${
+          respondidas > completas ? ` (${respondidas} con nota, faltan datos)` : ""
+        }${
           participantes.length > 0
             ? ` · ${contribuyeron} de ${participantes.length} participantes`
             : ""

@@ -5,6 +5,7 @@ import {
   NIVEL_MADUREZ,
   ROLES,
   ESTADO_DIAGNOSTICO_DESC,
+  respuestaCompleta,
   type Role,
 } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
@@ -192,7 +193,14 @@ async function DashboardEmpresa({
     },
     include: {
       dominio: { select: { orden: true, nombre: true, _count: { select: { preguntas: true } } } },
-      respuestas: { select: { valor: true } },
+      respuestas: {
+        select: {
+          valor: true,
+          comentario: true,
+          evidencias: { select: { archivoPath: true } },
+          pregunta: { select: { evidenciaObligatoria: true } },
+        },
+      },
     },
     orderBy: { dominio: { orden: "asc" } },
   });
@@ -211,10 +219,22 @@ async function DashboardEmpresa({
   const totalAlcance = esResponsable
     ? misDominios.reduce((a, d) => a + d.dominio._count.preguntas, 0)
     : incluidos.reduce((a, d) => a + d.dominio._count.preguntas, 0);
-  const respondidasAlcance = esResponsable
-    ? misDominios.reduce((a, d) => a + d.respuestas.filter((r) => r.valor != null).length, 0)
-    : incluidos.reduce((a, d) => a + d.respuestas.filter((r) => r.valor != null).length, 0);
-  const avance = totalAlcance ? Math.round((respondidasAlcance / totalAlcance) * 100) : 0;
+  const esCompleta = (r: {
+    valor: string | null;
+    comentario: string | null;
+    evidencias: { archivoPath: string | null }[];
+    pregunta: { evidenciaObligatoria: boolean };
+  }) =>
+    respuestaCompleta({
+      valor: r.valor,
+      comentario: r.comentario,
+      evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+      tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+    });
+  const completasAlcance = esResponsable
+    ? misDominios.reduce((a, d) => a + d.respuestas.filter(esCompleta).length, 0)
+    : incluidos.reduce((a, d) => a + d.respuestas.filter(esCompleta).length, 0);
+  const avance = totalAlcance ? Math.round((completasAlcance / totalAlcance) * 100) : 0;
 
   const [evidenciasSolicitadas, evidenciasObservadas, respuestasObservadas, accionesAbiertas] =
     await Promise.all([
@@ -269,7 +289,7 @@ async function DashboardEmpresa({
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <Kpi label={esResponsable ? "Mis dominios" : "Tareas asignadas"} valor={tareasAsignadas} />
-        <Kpi label="Preguntas pend." valor={totalAlcance - respondidasAlcance} />
+        <Kpi label="Preguntas pend." valor={totalAlcance - completasAlcance} />
         <Kpi label="Avance" valor={`${avance}%`} />
         <Kpi label="Evid. solicitadas" valor={evidenciasSolicitadas} />
         <Kpi

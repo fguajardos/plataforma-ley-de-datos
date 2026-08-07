@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
-import { ROLES, TIPO_DIAGNOSTICO, NIVEL_MADUREZ } from "@/lib/constants";
+import { ROLES, TIPO_DIAGNOSTICO, NIVEL_MADUREZ, respuestaCompleta } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import { getDiagnosticoFull, madurezDeDiagnostico } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
@@ -20,11 +20,20 @@ export default async function DiagnosticoDetallePage({
 
   const dominiosIncluidos = diag.dominios.filter((d) => d.incluido);
   const totalPreguntas = dominiosIncluidos.reduce((a, d) => a + d.dominio._count.preguntas, 0);
-  const respondidas = dominiosIncluidos.reduce(
-    (a, d) => a + d.respuestas.filter((r) => r.valor != null).length,
+  const completas = dominiosIncluidos.reduce(
+    (a, d) =>
+      a +
+      d.respuestas.filter((r) =>
+        respuestaCompleta({
+          valor: r.valor,
+          comentario: r.comentario,
+          evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+          tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+        })
+      ).length,
     0
   );
-  const avanceGlobal = totalPreguntas ? Math.round((respondidas / totalPreguntas) * 100) : 0;
+  const avanceGlobal = totalPreguntas ? Math.round((completas / totalPreguntas) * 100) : 0;
 
   // Dominios asignados al usuario de la sesión (para destacarlos y orientarlo).
   const misDominios = dominiosIncluidos.filter((d) =>
@@ -73,7 +82,7 @@ export default async function DiagnosticoDetallePage({
           <StatCard label="Avance">
             <span className="text-2xl font-bold text-slate-800">{avanceGlobal}%</span>
             <span className="ml-1 text-xs text-slate-400">
-              ({respondidas}/{totalPreguntas})
+              ({completas}/{totalPreguntas})
             </span>
           </StatCard>
           <StatCard label="Consultor">

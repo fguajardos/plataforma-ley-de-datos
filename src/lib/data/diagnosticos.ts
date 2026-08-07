@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { empresaScope, esStaffP360 } from "@/lib/session";
 import { calcularMadurez, type DominioInput } from "@/lib/engines/madurez";
-import type { Role } from "@/lib/constants";
+import { respuestaCompleta, type Role } from "@/lib/constants";
 
 type SessionLike = { user: { id: string; role: Role; empresaId: string | null } };
 
@@ -59,7 +59,16 @@ export async function getDiagnosticoFull(id: string, session: SessionLike) {
             orderBy: { user: { nombre: "asc" } },
           },
           area: { select: { id: true, nombre: true } },
-          respuestas: { select: { id: true, valor: true, estado: true } },
+          respuestas: {
+            select: {
+              id: true,
+              valor: true,
+              estado: true,
+              comentario: true,
+              evidencias: { select: { archivoPath: true } },
+              pregunta: { select: { evidenciaObligatoria: true } },
+            },
+          },
         },
       },
     },
@@ -258,7 +267,16 @@ export function madurezDeDiagnostico(
       orden: d.dominio.orden,
       nombre: d.dominio.nombre,
       totalPreguntas: d.dominio._count.preguntas,
-      respuestas: d.respuestas.map((r) => ({ preguntaId: r.id, valor: r.valor })),
+      respuestas: d.respuestas.map((r) => ({
+        preguntaId: r.id,
+        valor: r.valor,
+        completo: respuestaCompleta({
+          valor: r.valor,
+          comentario: r.comentario,
+          evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+          tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+        }),
+      })),
     }));
   return calcularMadurez(dominios);
 }

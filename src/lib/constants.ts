@@ -53,6 +53,23 @@ export function requiereComentario(valor: string | null | undefined): boolean {
   return valor != null && ["0", "1", "2", "N_A", "OTRO"].includes(valor);
 }
 
+/**
+ * ¿La respuesta está COMPLETA (lista para enviar el dominio)? Espejo de la validación de
+ * enviarDominio: requiere valor + comentario cuando aplica (0/1/2/N-A/Otro) + evidencia cuando
+ * es obligatoria y el control existe (3/4/5). Tener solo un valor NO cuenta como completa.
+ */
+export function respuestaCompleta(r: {
+  valor: string | null;
+  comentario: string | null;
+  evidenciaObligatoria: boolean;
+  tieneEvidencia: boolean;
+}): boolean {
+  if (r.valor == null) return false;
+  if (requiereComentario(r.valor) && !r.comentario?.trim()) return false;
+  if (r.evidenciaObligatoria && ["3", "4", "5"].includes(r.valor) && !r.tieneEvidencia) return false;
+  return true;
+}
+
 /** Las respuestas 0, 1 y 2 generan brecha preliminar. */
 export function generaBrechaPreliminar(valor: string | null | undefined): boolean {
   return valor != null && ["0", "1", "2"].includes(valor);
