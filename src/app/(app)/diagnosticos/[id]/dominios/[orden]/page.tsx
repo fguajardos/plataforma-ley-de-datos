@@ -57,6 +57,8 @@ export default async function DominioPage({
   const completas = dd.respuestas.filter((r) => r.estado !== "PENDIENTE").length;
   const dominioEnviado = ["EN_VALIDACION", "COMPLETADO"].includes(dd.estado);
   const total = dd.respuestas.length;
+  // Participantes que ya aportaron al menos una respuesta (contador del encabezado).
+  const contribuyeron = new Set(dd.respuestas.map((r) => r.respondidoPorId).filter(Boolean)).size;
 
   return (
     <>
@@ -69,9 +71,7 @@ export default async function DominioPage({
         title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`}
         subtitle={`${respondidas} de ${total} preguntas respondidas${
           participantes.length > 0
-            ? puedeValidar
-              ? ` · Participantes (${participantes.length}): ${participantes.map((u) => u.nombre).join(", ")}`
-              : ` · ${participantes.length} participante${participantes.length === 1 ? "" : "s"}`
+            ? ` · ${contribuyeron} de ${participantes.length} participantes`
             : ""
         }`}
       />
