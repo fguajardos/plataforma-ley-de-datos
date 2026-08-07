@@ -196,6 +196,13 @@ export async function getPreparacionInput(
     },
   });
 
+  const dominiosIncluidos = diag.dominios.filter((d) => d.incluido);
+  const preguntasEnAlcance = dominiosIncluidos.reduce((a, d) => a + d.dominio._count.preguntas, 0);
+  const preguntasRespondidas = dominiosIncluidos.reduce(
+    (a, d) => a + d.respuestas.filter((r) => r.valor != null).length,
+    0
+  );
+
   return {
     madurezGlobal,
     brechasCriticasAbiertas,
@@ -204,6 +211,8 @@ export async function getPreparacionInput(
     evidenciasRequeridas,
     planTotal,
     planCerradas,
+    preguntasRespondidas,
+    preguntasEnAlcance,
   };
 }
 

@@ -234,12 +234,13 @@ export function horizontePorDias(dias: number): HorizonteKey {
 
 // ───────────────────────── Preparación para certificación (doc §14) ─────────────────────────
 
-export type EstadoPreparacion = "NO_PREPARADO" | "INICIAL" | "EN_PROCESO" | "CASI" | "LISTO";
+export type EstadoPreparacion = "DATOS_INSUFICIENTES" | "NO_PREPARADO" | "INICIAL" | "EN_PROCESO" | "CASI" | "LISTO";
 
 export const ESTADO_PREPARACION: Record<
   EstadoPreparacion,
   { label: string; descripcion: string; color: string; min: number }
 > = {
+  DATOS_INSUFICIENTES: { label: "Datos insuficientes", descripcion: "Falta completar el levantamiento para evaluar la preparación", color: "#94a3b8", min: 0 },
   NO_PREPARADO: { label: "No preparado", descripcion: "Existen brechas críticas abiertas", color: "#dc2626", min: 0 },
   INICIAL: { label: "Inicial", descripcion: "Existen controles parciales", color: "#f97316", min: 30 },
   EN_PROCESO: { label: "En proceso", descripcion: "Plan de tratamiento en ejecución", color: "#eab308", min: 50 },
