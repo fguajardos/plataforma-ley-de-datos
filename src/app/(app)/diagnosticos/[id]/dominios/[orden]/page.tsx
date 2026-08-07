@@ -33,11 +33,7 @@ export default async function DominioPage({
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-sm font-medium text-slate-700">
-              Este dominio no está asignado a ti
-              {participantes.length > 0
-                ? ` — participan ${participantes.map((u) => u.nombre).join(", ")}`
-                : ""}
-              .
+              Este dominio no está asignado a ti.
             </p>
             <p className="mt-1 text-sm text-slate-500">
               Solo puedes responder los dominios en los que figuras como participante.
@@ -73,7 +69,9 @@ export default async function DominioPage({
         title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`}
         subtitle={`${respondidas} de ${total} preguntas respondidas${
           participantes.length > 0
-            ? ` · Participantes: ${participantes.map((u) => u.nombre).join(", ")}`
+            ? puedeValidar
+              ? ` · Participantes (${participantes.length}): ${participantes.map((u) => u.nombre).join(", ")}`
+              : ` · ${participantes.length} participante${participantes.length === 1 ? "" : "s"}`
             : ""
         }`}
       />
