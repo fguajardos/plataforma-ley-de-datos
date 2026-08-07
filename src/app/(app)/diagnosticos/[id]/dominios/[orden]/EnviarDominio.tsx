@@ -82,7 +82,13 @@ export function EnviarDominio({
           <ul className="mt-2 space-y-1">
             {faltantes.map((f) => (
               <li key={f.orden} className="text-sm text-orange-800">
-                Pregunta {f.orden} — {f.motivo}
+                <a
+                  href={`#pregunta-${f.orden}`}
+                  className="font-semibold underline underline-offset-2 hover:text-orange-900"
+                >
+                  Pregunta {f.orden}
+                </a>{" "}
+                — {f.motivo}
               </li>
             ))}
           </ul>

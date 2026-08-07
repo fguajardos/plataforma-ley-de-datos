@@ -79,7 +79,7 @@ export function PreguntaItem({
   }, [valor, comentario, riesgo, respuesta.id, soloLectura]);
 
   return (
-    <div className="border-b border-slate-100 px-5 py-5 last:border-0">
+    <div id={`pregunta-${pregunta.orden}`} className="scroll-mt-24 border-b border-slate-100 px-5 py-5 last:border-0">
       <div className="flex items-start gap-3">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
           {pregunta.orden}
@@ -104,9 +104,14 @@ export function PreguntaItem({
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-500">{pregunta.descripcion}</p>
-          {pregunta.evidenciaObligatoria && (
-            <p className="mt-1 text-xs font-medium text-orange-600">Requiere evidencia documental</p>
-          )}
+          {pregunta.evidenciaObligatoria &&
+            (["3", "4", "5"].includes(valor ?? "") ? (
+              <p className="mt-1 text-xs font-medium text-orange-600">Requiere evidencia documental</p>
+            ) : valor == null ? (
+              <p className="mt-1 text-xs text-slate-400">
+                Si el control existe (respuestas 3–5), requiere evidencia documental.
+              </p>
+            ) : null)}
 
           {/* Escala */}
           <div className="mt-3 flex flex-wrap gap-1.5">

@@ -138,7 +138,14 @@ export async function enviarDominio(diagnosticoDominioId: string): Promise<Envio
       faltantes.push({ orden, motivo: "falta el comentario obligatorio" });
       continue;
     }
-    if (r.pregunta.evidenciaObligatoria && !r.evidencias.some((e) => e.archivoPath)) {
+    // La evidencia solo se exige cuando la respuesta afirma que el control EXISTE (3/4/5).
+    // Para 0/1/2/N-A/Otro no hay qué adjuntar; el comentario obligatorio es la justificación.
+    // (Consistente con el motor de brechas, src/lib/engines/brechas.ts.)
+    if (
+      r.pregunta.evidenciaObligatoria &&
+      ["3", "4", "5"].includes(r.valor) &&
+      !r.evidencias.some((e) => e.archivoPath)
+    ) {
       faltantes.push({ orden, motivo: "falta la evidencia obligatoria" });
     }
   }
