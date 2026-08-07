@@ -61,6 +61,8 @@ export default async function DominioPage({
   const contribuyeron = new Set(dd.respuestas.map((r) => r.respondidoPorId).filter(Boolean)).size;
   const responsablesEvidencia = dd.participantes.filter((p) => p.responsableEvidencia);
   const yoResponsableEvidencia = responsablesEvidencia.some((p) => p.userId === session.user.id);
+  // Primera pregunta sin responder, para el botón "Continuar donde quedaste".
+  const primerPendiente = dd.respuestas.find((r) => r.valor == null)?.pregunta.orden ?? null;
 
   return (
     <>
@@ -93,6 +95,21 @@ export default async function DominioPage({
           📎 Responsables de evidencia: {responsablesEvidencia.map((p) => p.user.nombre).join(", ")}
         </p>
       ) : null}
+
+      {!dominioEnviado && primerPendiente != null && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <a
+            href={`#pregunta-${primerPendiente}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            {respondidas > 0 ? "Continuar donde quedaste" : "Comenzar a responder"}
+            <span aria-hidden>↓</span>
+          </a>
+          <span className="text-xs text-slate-500">
+            Tus respuestas se guardan solas — puedes salir y volver cuando quieras.
+          </span>
+        </div>
+      )}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <Card className="md:col-span-2">
