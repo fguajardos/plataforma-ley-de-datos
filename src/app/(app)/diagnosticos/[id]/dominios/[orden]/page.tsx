@@ -59,6 +59,8 @@ export default async function DominioPage({
   const total = dd.respuestas.length;
   // Participantes que ya aportaron al menos una respuesta (contador del encabezado).
   const contribuyeron = new Set(dd.respuestas.map((r) => r.respondidoPorId).filter(Boolean)).size;
+  const responsablesEvidencia = dd.participantes.filter((p) => p.responsableEvidencia);
+  const yoResponsableEvidencia = responsablesEvidencia.some((p) => p.userId === session.user.id);
 
   return (
     <>
@@ -81,6 +83,16 @@ export default async function DominioPage({
           ✓ Este dominio te corresponde a ti
         </div>
       )}
+
+      {yoResponsableEvidencia ? (
+        <div className="mb-5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-medium text-orange-700">
+          📎 Eres responsable de subir la evidencia documental de este dominio.
+        </div>
+      ) : puedeValidar && responsablesEvidencia.length > 0 ? (
+        <p className="mb-5 text-xs text-slate-500">
+          📎 Responsables de evidencia: {responsablesEvidencia.map((p) => p.user.nombre).join(", ")}
+        </p>
+      ) : null}
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         <Card className="md:col-span-2">

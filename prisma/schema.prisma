@@ -168,6 +168,9 @@ model ParticipanteDominio {
   diagnosticoDominio   DiagnosticoDominio @relation(fields: [diagnosticoDominioId], references: [id], onDelete: Cascade)
   userId               String
   user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Designación organizativa: quién está a cargo de subir la evidencia del dominio.
+  // No cambia la regla de envío (la evidencia se exige a nivel de dominio para 3/4/5).
+  responsableEvidencia Boolean            @default(false)
   createdAt            DateTime           @default(now())
 
   @@unique([diagnosticoDominioId, userId])

@@ -30,6 +30,7 @@ export default async function ConfigurarPage({ params }: { params: Promise<{ id:
     nombre: d.dominio.nombre,
     incluido: d.incluido,
     participantesIds: d.participantes.map((p) => p.userId),
+    responsablesEvidenciaIds: d.participantes.filter((p) => p.responsableEvidencia).map((p) => p.userId),
     areaId: d.area?.id ?? "",
     justificacionNoAplica: d.justificacionNoAplica ?? "",
   }));

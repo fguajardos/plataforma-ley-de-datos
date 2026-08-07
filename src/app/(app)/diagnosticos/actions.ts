@@ -86,6 +86,7 @@ const configSchema = z.object({
       diagnosticoDominioId: z.string().min(1),
       incluido: z.boolean(),
       participantesIds: z.array(z.string()).optional().default([]),
+      responsablesEvidenciaIds: z.array(z.string()).optional().default([]),
       areaId: z.string().optional().default(""),
       justificacionNoAplica: z.string().max(1000).optional().default(""),
     })
@@ -172,6 +173,18 @@ export async function configurarDiagnosticoAction(input: z.input<typeof configSc
             data: ids.map((userId) => ({ diagnosticoDominioId: d.diagnosticoDominioId, userId })),
             skipDuplicates: true,
           });
+          // Responsables de evidencia: subconjunto de los participantes del dominio.
+          const responsables = ids.filter((id) => d.responsablesEvidenciaIds.includes(id));
+          await tx.participanteDominio.updateMany({
+            where: { diagnosticoDominioId: d.diagnosticoDominioId },
+            data: { responsableEvidencia: false },
+          });
+          if (responsables.length > 0) {
+            await tx.participanteDominio.updateMany({
+              where: { diagnosticoDominioId: d.diagnosticoDominioId, userId: { in: responsables } },
+              data: { responsableEvidencia: true },
+            });
+          }
         }
       }
     },
