@@ -21,6 +21,8 @@ const prisma = new PrismaClient();
 const APP_URL = "https://lpdp.procesos360.cl";
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const EMAIL_FROM = process.env.EMAIL_FROM!;
+// El remitente no recibe respuestas: hay que dar un contacto real.
+const CONTACTO = "francisco.guajardo@procesos360.cl";
 
 // Alias para correos de prueba que no son usuarios del sistema.
 const ALIAS: Record<string, string> = { "fj.guajardos@gmail.com": "Francisco Guajardo" };
@@ -68,7 +70,7 @@ function plantilla(nombre: string): { subject: string; html: string; text: strin
         <li>Responder las <strong>preguntas de tu(s) dominio(s)</strong> y <strong>adjuntar la evidencia</strong> disponible.</li>
       </ol>
 
-      <p style="margin:0 0 12px;line-height:1.6">Es importante contar con tus respuestas dentro de los plazos que coordinaremos en las sesiones de trabajo. Si tienes dudas sobre el alcance o cómo responder, podrás resolverlas directamente con el equipo de Procesos360.</p>
+      <p style="margin:0 0 12px;line-height:1.6">Es importante contar con tus respuestas dentro de los plazos que coordinaremos en las sesiones de trabajo. Ante cualquier duda o problema, escríbeme directamente a <a href="mailto:${CONTACTO}" style="color:#2563eb;font-weight:600">${CONTACTO}</a>. Este correo es automático y no recibe respuestas.</p>
       <p style="margin:0 0 4px;line-height:1.6"><strong>Por favor, mantente atento/a al correo de acceso</strong> (revisa también correo no deseado / spam por si acaso).</p>
       <p style="margin:16px 0 0;line-height:1.6;font-size:14px;color:#374151">Agradecemos desde ya tu colaboración en este proceso.</p>
       <p style="margin:14px 0 0;line-height:1.5;font-size:14px;color:#111827"><strong>Equipo Procesos360</strong><br><span style="color:#6b7280">Diagnóstico LPDP — Ley N° 21.719</span></p>
@@ -94,6 +96,9 @@ En las próximas horas recibirás un segundo correo, desde esta misma dirección
   3. Responder las preguntas de tu(s) dominio(s) y adjuntar la evidencia disponible.
 
 Por favor, mantente atento/a al correo de acceso (revisa también spam por si acaso).
+
+Ante cualquier duda o problema, escríbeme directamente a ${CONTACTO}.
+Este correo es automático y no recibe respuestas.
 
 Agradecemos tu colaboración.
 

@@ -23,6 +23,8 @@ const prisma = new PrismaClient();
 const APP_URL = "https://lpdp.procesos360.cl";
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const EMAIL_FROM = process.env.EMAIL_FROM!;
+// El remitente no recibe respuestas: hay que dar un contacto real.
+const CONTACTO = "francisco.guajardo@procesos360.cl";
 
 type Cred = { nombre: string; email: string; cargo: string; password: string };
 
@@ -66,7 +68,7 @@ function plantilla(nombre: string, email: string, password: string, dominios: st
         <a href="${APP_URL}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600">Ingresar a la plataforma</a>
       </div>
       <p style="margin:0 0 12px;line-height:1.55;font-size:14px;color:#374151">Al ingresar por primera vez se te pedirá <strong>aceptar el consentimiento informado</strong> antes de comenzar. La dirección es <a href="${APP_URL}" style="color:#2563eb">${APP_URL.replace("https://", "")}</a>.</p>
-      <p style="margin:16px 0 0;line-height:1.55;font-size:13px;color:#6b7280">Si tienes dudas sobre cómo responder, responde este correo o contacta a tu consultor de Procesos360.</p>
+      <p style="margin:16px 0 0;line-height:1.55;font-size:13px;color:#374151">Ante cualquier duda o problema para ingresar, escríbeme directamente a <a href="mailto:${CONTACTO}" style="color:#2563eb;font-weight:600">${CONTACTO}</a>. Este correo es automático y no recibe respuestas.</p>
     </div>
     <p style="text-align:center;margin:14px 0 0;font-size:12px;color:#9ca3af">Este es un correo automático de notificación. Procesos360 SpA.</p>
   </div></body></html>`;
@@ -82,7 +84,8 @@ Tus credenciales:
 Ingresa en: ${APP_URL}
 Al entrar por primera vez se te pedirá aceptar el consentimiento informado.
 
-Si tienes dudas, responde este correo o contacta a tu consultor de Procesos360.`;
+Ante cualquier duda o problema para ingresar, escríbeme directamente a ${CONTACTO}.
+Este correo es automático y no recibe respuestas.`;
 
   return { subject, html, text };
 }
