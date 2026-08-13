@@ -151,16 +151,38 @@ export default async function DominioPage({
           <CardTitle>Preguntas del diagnóstico</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {dd.respuestas.map((r) => (
+          {dd.respuestas.map((r) => {
+            // El participante edita SU aporte; el consultor edita la respuesta oficial.
+            const propio = r.aportes.find((a) => a.userId === session.user.id) ?? null;
+            const editable = puedeValidar
+              ? { valor: r.valor, comentario: r.comentario, riesgoIdentificado: r.riesgoIdentificado }
+              : {
+                  valor: propio?.valor ?? null,
+                  comentario: propio?.comentario ?? null,
+                  riesgoIdentificado: propio?.riesgoIdentificado ?? null,
+                };
+            return (
             <PreguntaItem
               key={r.id}
               respuesta={{
                 id: r.id,
-                valor: r.valor,
-                comentario: r.comentario,
-                riesgoIdentificado: r.riesgoIdentificado,
+                valor: editable.valor,
+                comentario: editable.comentario,
+                riesgoIdentificado: editable.riesgoIdentificado,
                 estado: r.estado,
               }}
+              aportes={
+                puedeValidar
+                  ? r.aportes.map((a) => ({
+                      autor: a.user.nombre,
+                      cargo: a.user.cargo,
+                      valor: a.valor,
+                      comentario: a.comentario,
+                      riesgoIdentificado: a.riesgoIdentificado,
+                    }))
+                  : []
+              }
+              consolidadaManual={r.consolidadaManual}
               pregunta={{
                 orden: r.pregunta.orden,
                 texto: r.pregunta.texto,
@@ -178,7 +200,8 @@ export default async function DominioPage({
                 observaciones: e.observaciones,
               }))}
             />
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

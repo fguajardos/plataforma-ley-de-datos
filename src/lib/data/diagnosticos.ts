@@ -247,7 +247,21 @@ export async function getDiagnosticoDominio(
         orderBy: { user: { nombre: "asc" } },
       },
       respuestas: {
-        include: { pregunta: true, evidencias: true },
+        include: {
+          pregunta: true,
+          evidencias: true,
+          // Aportes individuales: el participante solo recibe el suyo (responde a
+          // ciegas); el consultor los recibe todos para poder consolidar.
+          aportes: esStaffP360(session.user.role)
+            ? {
+                include: { user: { select: { id: true, nombre: true, cargo: true } } },
+                orderBy: { user: { nombre: "asc" } },
+              }
+            : {
+                where: { userId: session.user.id },
+                include: { user: { select: { id: true, nombre: true, cargo: true } } },
+              },
+        },
         orderBy: { pregunta: { orden: "asc" } },
       },
     },

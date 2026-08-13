@@ -151,6 +151,11 @@ export const ESTADO_RESPUESTA = {
   OBSERVADA: "Observada",
 } as const;
 
+/** Tamaño máximo de una evidencia. El archivo viaja del navegador directo a Storage
+ *  mediante una URL firmada, así que no lo limita el servidor sino el bucket. */
+export const MAX_EVIDENCIA_MB = 50;
+export const MAX_EVIDENCIA_BYTES = MAX_EVIDENCIA_MB * 1024 * 1024;
+
 export const ESTADO_EVIDENCIA = {
   PENDIENTE: "Pendiente",
   EN_REVISION: "En revisión",

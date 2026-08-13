@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
 import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import { requiereComentario, ROLES, VALORES } from "@/lib/constants";
+import { consolidarAportes } from "@/lib/engines/consolidacion";
 
 const schema = z.object({
   respuestaId: z.string().min(1),
@@ -15,6 +16,52 @@ const schema = z.object({
 });
 
 export type RespuestaResult = { ok: boolean; error?: string };
+
+/**
+ * Recalcula la respuesta oficial a partir de los aportes de los participantes.
+ * No hace nada si el consultor la fijó a mano: su criterio manda sobre la regla.
+ */
+async function reconsolidarRespuesta(respuestaId: string, ultimoAutorId: string): Promise<void> {
+  const respuesta = await prisma.respuesta.findUnique({
+    where: { id: respuestaId },
+    select: {
+      consolidadaManual: true,
+      aportes: {
+        select: {
+          valor: true,
+          comentario: true,
+          riesgoIdentificado: true,
+          user: { select: { nombre: true } },
+        },
+      },
+    },
+  });
+  if (!respuesta || respuesta.consolidadaManual) return;
+
+  const consolidado = consolidarAportes(
+    respuesta.aportes.map((a) => ({
+      valor: a.valor,
+      comentario: a.comentario,
+      riesgoIdentificado: a.riesgoIdentificado,
+      autor: a.user.nombre,
+    }))
+  );
+
+  const completa =
+    consolidado.valor != null &&
+    (!requiereComentario(consolidado.valor) || Boolean(consolidado.comentario?.trim()));
+
+  await prisma.respuesta.update({
+    where: { id: respuestaId },
+    data: {
+      valor: consolidado.valor,
+      comentario: consolidado.comentario,
+      riesgoIdentificado: consolidado.riesgoIdentificado,
+      estado: completa ? "RESPONDIDA" : "PENDIENTE",
+      respondidoPorId: ultimoAutorId,
+    },
+  });
+}
 
 export async function guardarRespuesta(input: z.input<typeof schema>): Promise<RespuestaResult> {
   const session = await requireSession();
@@ -53,22 +100,43 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
     return { ok: false, error: "El dominio ya fue enviado a validación." };
   }
 
-  // El guardado es automático, así que acepta borradores incompletos: nunca se pierde
-  // lo avanzado. La regla del §7.5 (comentario obligatorio en 0/1/2/N-A/Otro) se exige
-  // al ENVIAR el dominio; aquí solo determina si la respuesta ya está completa.
-  const completa = !requiereComentario(valor) || Boolean(comentario.trim());
+  const esConsultor = esStaffP360(session.user.role);
 
-  await prisma.respuesta.update({
-    where: { id: respuestaId },
-    data: {
-      valor,
-      comentario: comentario.trim() || null,
-      riesgoIdentificado: riesgoIdentificado.trim() || null,
-      // Una respuesta observada por el consultor vuelve a "respondida" al corregirse.
-      estado: completa ? "RESPONDIDA" : "PENDIENTE",
-      respondidoPorId: session.user.id,
-    },
-  });
+  if (esConsultor) {
+    // El consultor escribe directamente la respuesta oficial y la deja fijada, para que
+    // un aporte posterior de un participante no le sobrescriba el criterio.
+    const completa = !requiereComentario(valor) || Boolean(comentario.trim());
+    await prisma.respuesta.update({
+      where: { id: respuestaId },
+      data: {
+        valor,
+        comentario: comentario.trim() || null,
+        riesgoIdentificado: riesgoIdentificado.trim() || null,
+        estado: completa ? "RESPONDIDA" : "PENDIENTE",
+        respondidoPorId: session.user.id,
+        consolidadaManual: true,
+      },
+    });
+  } else {
+    // El participante escribe SU aporte: nunca toca lo de sus colegas. La respuesta
+    // oficial se recalcula a partir de todos los aportes del dominio.
+    await prisma.aporteRespuesta.upsert({
+      where: { respuestaId_userId: { respuestaId, userId: session.user.id } },
+      create: {
+        respuestaId,
+        userId: session.user.id,
+        valor,
+        comentario: comentario.trim() || null,
+        riesgoIdentificado: riesgoIdentificado.trim() || null,
+      },
+      update: {
+        valor,
+        comentario: comentario.trim() || null,
+        riesgoIdentificado: riesgoIdentificado.trim() || null,
+      },
+    });
+    await reconsolidarRespuesta(respuestaId, session.user.id);
+  }
 
   // Marcar el dominio en ejecución (si no venía de una corrección post-validación).
   if (!dominioBloqueado) {

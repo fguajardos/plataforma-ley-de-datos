@@ -76,6 +76,7 @@ model User {
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
+  aportes               AporteRespuesta[]
 }
 
 // Registro inmutable de cada aceptación: acredita quién consintió, qué versión
@@ -177,6 +178,10 @@ model ParticipanteDominio {
   @@index([userId])
 }
 
+// Respuesta OFICIAL del dominio para una pregunta: la única que consumen los motores
+// de madurez, brechas y reportes. Cuando el dominio tiene varios participantes, no la
+// escriben ellos directamente sino que se consolida a partir de sus AporteRespuesta
+// (ver src/lib/engines/consolidacion.ts). El consultor puede fijarla a mano.
 model Respuesta {
   id                   String             @id @default(cuid())
   diagnosticoDominioId String
@@ -189,12 +194,34 @@ model Respuesta {
   estado               String             @default("PENDIENTE") // PENDIENTE, RESPONDIDA, VALIDADA, OBSERVADA
   observacionConsultor String?
   respondidoPorId      String?
+  // El consultor fijó esta respuesta a mano: la consolidación automática ya no la pisa.
+  consolidadaManual    Boolean            @default(false)
   updatedAt            DateTime           @updatedAt
 
   evidencias Evidencia[]
+  aportes    AporteRespuesta[]
   brecha     Brecha?
 
   @@unique([diagnosticoDominioId, preguntaId])
+}
+
+// Lo que respondió UNA persona para UNA pregunta. Cada participante tiene su propia
+// fila, así dos personas del mismo dominio nunca se sobrescriben. Los participantes
+// no ven los aportes de sus colegas; el consultor sí, y de ellos sale la oficial.
+model AporteRespuesta {
+  id                 String    @id @default(cuid())
+  respuestaId        String
+  respuesta          Respuesta @relation(fields: [respuestaId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor              String? // "0".."5", "N_A", "OTRO"; null = pendiente
+  comentario         String?
+  riesgoIdentificado String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([respuestaId, userId])
+  @@index([userId])
 }
 
 model Evidencia {
