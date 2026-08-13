@@ -205,6 +205,30 @@ model Respuesta {
   @@unique([diagnosticoDominioId, preguntaId])
 }
 
+// Bitácora de cambios sobre las tablas del levantamiento (respuestas, aportes y
+// evidencias). La escriben disparadores en la base, no la aplicación: así también
+// quedan registrados los cambios hechos por scripts de mantención, y ninguna ruta
+// puede saltársela.
+//
+// Sirve para dos cosas: recuperar lo que alguien sobrescribió, y acreditar ante una
+// auditoría quién cambió qué y cuándo — el principio de responsabilidad demostrable
+// que la propia Ley 21.719 exige.
+//
+// Los disparadores se instalan con prisma/instalar-historial.ts (Prisma no gestiona
+// triggers). La purga a 12 meses la hace prisma/purgar-historial.ts.
+model HistorialCambio {
+  id          Int      @id @default(autoincrement())
+  tabla       String // Respuesta, AporteRespuesta, Evidencia
+  registroId  String // id de la fila afectada
+  operacion   String // INSERT, UPDATE, DELETE
+  anterior    Json? // fila completa antes del cambio (null en INSERT)
+  nuevo       Json? // fila completa después del cambio (null en DELETE)
+  fecha       DateTime @default(now())
+
+  @@index([tabla, registroId, fecha])
+  @@index([fecha])
+}
+
 // Lo que respondió UNA persona para UNA pregunta. Cada participante tiene su propia
 // fila, así dos personas del mismo dominio nunca se sobrescriben. Los participantes
 // no ven los aportes de sus colegas; el consultor sí, y de ellos sale la oficial.

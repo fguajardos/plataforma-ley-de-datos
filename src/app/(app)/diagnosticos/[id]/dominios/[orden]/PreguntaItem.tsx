@@ -6,6 +6,7 @@ import { VALORES, ESCALA, requiereComentario, type Valor } from "@/lib/constants
 import { Badge, Textarea, Input, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { EvidenciasPregunta, type EvidenciaVM } from "./EvidenciasPregunta";
+import { HistorialPregunta } from "./HistorialPregunta";
 
 type Props = {
   respuesta: {
@@ -240,6 +241,9 @@ export function PreguntaItem({
             evidencias={evidencias ?? []}
             puedeValidar={!!puedeValidar}
           />
+
+          {/* Bitácora de la pregunta: quién cambió qué y cuándo. Solo el consultor. */}
+          {puedeValidar && <HistorialPregunta respuestaId={respuesta.id} />}
         </div>
       </div>
     </div>
