@@ -81,10 +81,15 @@ async function preparar() {
   console.log("Listo para demostrar. Recuerda: entra con la sesión cerrada.\n");
 }
 
-/** Borra SOLO lo que se sube en la demo y vacía las respuestas.
+/** Borra SOLO lo que se genera en la demo y vacía las respuestas.
  *  Importante: no toca las "evidencias esperadas" del levantamiento — son los
  *  placeholders sin archivo que alimentan la lista de evidencias del dominio. */
 async function limpiarDominio(ddId: string) {
+  // Los aportes van primero: si quedaran vivos, el participante seguiría viendo la
+  // respuesta de la demo como suya aunque la oficial esté vacía.
+  const a = await prisma.aporteRespuesta.deleteMany({
+    where: { respuesta: { diagnosticoDominioId: ddId } },
+  });
   const e1 = await prisma.evidencia.deleteMany({
     where: { diagnosticoDominioId: ddId, archivoPath: { not: null } },
   });
@@ -94,9 +99,12 @@ async function limpiarDominio(ddId: string) {
     data: {
       valor: null, comentario: null, riesgoIdentificado: null,
       estado: "PENDIENTE", observacionConsultor: null, respondidoPorId: null,
+      consolidadaManual: false,
     },
   });
-  console.log(`  respuestas vaciadas: ${r.count} · evidencias borradas: ${e1.count + e2.count}`);
+  console.log(
+    `  respuestas vaciadas: ${r.count} · aportes borrados: ${a.count} · evidencias borradas: ${e1.count + e2.count}`
+  );
 }
 
 async function limpiar() {
