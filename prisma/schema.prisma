@@ -73,6 +73,12 @@ model User {
   consentimientoVersion String? // null = nunca ha aceptado
   consentimientoFecha   DateTime?
 
+  // Activación de la cuenta. El correo de bienvenida lleva un enlace con este token
+  // y la persona define su propia contraseña: así no viajan credenciales por correo,
+  // que es lo que los filtros de seguridad corporativos leen como phishing.
+  tokenActivacion String?   @unique
+  tokenExpira     DateTime?
+
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
