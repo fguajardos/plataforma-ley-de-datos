@@ -45,7 +45,7 @@ export default async function DiagnosticoDetallePage({
 
   return (
     <>
-      <DiagnosticoNav id={id} active="resumen" role={session.user.role} />
+      <DiagnosticoNav id={id} active="resumen" />
       <PageHeader
         title={diag.nombre}
         subtitle={`${diag.empresa.razonSocial} · ${TIPO_DIAGNOSTICO[diag.tipo as keyof typeof TIPO_DIAGNOSTICO] ?? diag.tipo}`}

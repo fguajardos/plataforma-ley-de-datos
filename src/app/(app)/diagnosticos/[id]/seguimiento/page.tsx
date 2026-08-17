@@ -45,7 +45,7 @@ export default async function SeguimientoPage({
         title="Seguimiento de participantes"
         subtitle={`Qué le falta a cada uno en ${diag.nombre}`}
       />
-      <DiagnosticoNav id={id} active="seguimiento" role={session.user.role} />
+      <DiagnosticoNav id={id} active="seguimiento" />
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Con pendientes" valor={pendientes.length} total={participantes.length} />
