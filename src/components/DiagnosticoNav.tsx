@@ -9,6 +9,7 @@ import { ROLES, type Role } from "@/lib/constants";
 const TABS: { key: string; suffix: string; label: string }[] = [
   { key: "resumen", suffix: "", label: "Resumen" },
   { key: "configurar", suffix: "/configurar", label: "Configurar" },
+  { key: "seguimiento", suffix: "/seguimiento", label: "Seguimiento" },
   { key: "madurez", suffix: "/madurez", label: "Madurez" },
   { key: "brechas", suffix: "/brechas", label: "Brechas" },
   { key: "riesgos", suffix: "/riesgos", label: "Riesgos" },

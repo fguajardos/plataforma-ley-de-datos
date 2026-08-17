@@ -79,6 +79,9 @@ model User {
   tokenActivacion String?   @unique
   tokenExpira     DateTime?
 
+  // Última vez que se le envió un recordatorio, para no insistirle de más.
+  ultimoRecordatorio DateTime?
+
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
