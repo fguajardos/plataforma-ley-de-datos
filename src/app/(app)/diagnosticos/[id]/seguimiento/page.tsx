@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession, esStaffP360 } from "@/lib/session";
 import { pendientesDelDiagnostico, queFalta } from "@/lib/data/pendientes";
+import { avanceDelDiagnostico } from "@/lib/data/avance";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { BotonRecordatorio } from "@/components/BotonRecordatorio";
+import { AvanceDiagnostico } from "@/components/AvanceDiagnostico";
 
 export const metadata = { title: "Seguimiento · Procesos360" };
 
@@ -33,6 +35,7 @@ export default async function SeguimientoPage({
   });
   if (!diag) notFound();
 
+  const avance = await avanceDelDiagnostico(id);
   const participantes = await pendientesDelDiagnostico(id);
   const pendientes = participantes.filter((u) => !u.alDia);
   const alDia = participantes.filter((u) => u.alDia);
@@ -46,6 +49,12 @@ export default async function SeguimientoPage({
         subtitle={`Qué le falta a cada uno en ${diag.nombre}`}
       />
       <DiagnosticoNav id={id} active="seguimiento" />
+
+      {avance && (
+        <div className="mb-6">
+          <AvanceDiagnostico datos={avance} />
+        </div>
+      )}
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Kpi label="Con pendientes" valor={pendientes.length} total={participantes.length} />
