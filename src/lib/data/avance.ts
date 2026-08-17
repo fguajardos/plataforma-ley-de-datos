@@ -9,7 +9,7 @@
 // planos, sin nada atado a la interfaz.
 
 import { prisma } from "@/lib/db";
-import { respuestaCompleta } from "@/lib/constants";
+import { respuestaCompleta, valorNumerico, clasificarMadurez, type NivelMadurez } from "@/lib/constants";
 
 const CERRADOS = ["EN_VALIDACION", "COMPLETADO"];
 
@@ -21,6 +21,10 @@ export type AvanceDominio = {
   porcentaje: number;
   estado: string;
   cerrado: boolean; // ya enviado a validación
+  // Nota de madurez del dominio. Solo tiene sentido leerla donde ya se respondió:
+  // en un dominio sin iniciar no es "0", es que todavía no se sabe.
+  promedio: number | null;
+  nivel: NivelMadurez | null;
 };
 
 export type AvanceDiagnostico = {
@@ -96,6 +100,15 @@ export async function avanceDelDiagnostico(diagnosticoId: string): Promise<Avanc
     }
     for (const p of dd.participantes) personas.add(p.userId);
 
+    // N/A y OTRO no puntúan: no dicen nada sobre qué tan madura está la práctica.
+    const puntuables = dd.respuestas
+      .map((r) => valorNumerico(r.valor))
+      .filter((n): n is number => n != null);
+    const promedio =
+      puntuables.length === 0
+        ? null
+        : Math.round((puntuables.reduce((a, b) => a + b, 0) / puntuables.length) * 100) / 100;
+
     dominios.push({
       orden: dd.dominio.orden,
       nombre: dd.dominio.nombre,
@@ -104,6 +117,8 @@ export async function avanceDelDiagnostico(diagnosticoId: string): Promise<Avanc
       porcentaje: pct(c, t),
       estado: dd.estado,
       cerrado: CERRADOS.includes(dd.estado),
+      promedio,
+      nivel: clasificarMadurez(promedio),
     });
   }
 
