@@ -5,7 +5,7 @@ import { pendientesDelDiagnostico, queFalta } from "@/lib/data/pendientes";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
-import { BotonRecordatorio } from "./BotonRecordatorio";
+import { BotonRecordatorio } from "@/components/BotonRecordatorio";
 
 export const metadata = { title: "Seguimiento · Procesos360" };
 

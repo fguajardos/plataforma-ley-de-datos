@@ -18,8 +18,10 @@ import {
 } from "@/lib/data/diagnosticos";
 import { calcularPreparacion } from "@/lib/engines/certificacion";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { NivelBadge, EstadoDiagnosticoBadge, PreparacionBadge } from "@/components/badges";
+import { BotonRecordatorio } from "@/components/BotonRecordatorio";
+import { pendientesGlobales } from "@/lib/data/pendientes";
 
 type SessionLike = { user: { id: string; role: Role; empresaId: string | null } };
 
@@ -71,6 +73,8 @@ async function DashboardP360({ session }: { session: SessionLike }) {
         <Kpi label="Acciones vencidas" valor={accionesVencidas} color={accionesVencidas ? "#dc2626" : undefined} />
       </div>
 
+      <SeguimientoResumen />
+
       <Card>
         <CardHeader>
           <CardTitle>Diagnósticos recientes</CardTitle>
@@ -95,6 +99,77 @@ async function DashboardP360({ session }: { session: SessionLike }) {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * Quién tiene respuestas pendientes, en todas las empresas a la vez. Va en la portada
+ * porque es lo primero que el consultor necesita decidir cada mañana: a quién apurar.
+ * El detalle por empresa vive en la pestaña Seguimiento de cada diagnóstico.
+ */
+async function SeguimientoResumen() {
+  const pendientes = await pendientesGlobales();
+  if (pendientes.length === 0) return null;
+
+  const sinEntrar = pendientes.filter((u) => !u.ultimaActividad).length;
+  // Un diagnóstico por empresa es lo habitual: si todos son del mismo, sobra repetirlo.
+  const variosDiagnosticos = new Set(pendientes.map((d) => d.diagnosticoId)).size > 1;
+  const visibles = pendientes.slice(0, 6);
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <CardTitle>Participantes con pendientes</CardTitle>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {pendientes.length} {pendientes.length === 1 ? "persona" : "personas"}
+            {sinEntrar > 0 && ` · ${sinEntrar} nunca ${sinEntrar === 1 ? "ha entrado" : "han entrado"}`}
+          </p>
+        </div>
+        <Link
+          href={`/diagnosticos/${pendientes[0].diagnosticoId}/seguimiento`}
+          className="text-sm font-medium text-brand-600 hover:underline"
+        >
+          Ver seguimiento completo →
+        </Link>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ul className="divide-y divide-slate-100">
+          {visibles.map((u) => (
+            <li
+              key={`${u.diagnosticoId}-${u.userId}`}
+              className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-800">{u.nombre}</span>
+                  {u.cargo && <span className="text-xs text-slate-400">{u.cargo}</span>}
+                  {!u.ultimaActividad && <Badge color="orange">Nunca ha entrado</Badge>}
+                </div>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {variosDiagnosticos && `${u.empresa} · `}
+                  {u.dominios.map((d) => `${d.orden}. ${d.nombre}`).join(" · ")}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {u.totalPreguntas > 0 && (
+                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                    {u.totalPreguntas}
+                    <span className="ml-1 text-xs font-normal text-slate-400">preg.</span>
+                  </span>
+                )}
+                <BotonRecordatorio diagnosticoId={u.diagnosticoId} userId={u.userId} />
+              </div>
+            </li>
+          ))}
+        </ul>
+        {pendientes.length > visibles.length && (
+          <p className="border-t border-slate-100 px-5 py-2.5 text-xs text-slate-400">
+            y {pendientes.length - visibles.length} más
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

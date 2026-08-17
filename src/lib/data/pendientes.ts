@@ -123,6 +123,48 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
   });
 }
 
+export type PendientesGlobal = PendientesUsuario & {
+  diagnosticoId: string;
+  diagnosticoNombre: string;
+  empresa: string;
+};
+
+/**
+ * Pendientes de todos los diagnósticos abiertos, en una sola lista.
+ *
+ * El consultor lleva varias empresas a la vez: lo que necesita al abrir la plataforma
+ * no es el detalle de un cliente, sino a quién hay que perseguir hoy, sea de quien sea.
+ * Los diagnósticos cerrados quedan fuera porque ya no hay nada que pedir.
+ */
+export async function pendientesGlobales(): Promise<PendientesGlobal[]> {
+  const diagnosticos = await prisma.diagnostico.findMany({
+    where: { estado: { not: "CERRADO" } },
+    select: { id: true, nombre: true, empresa: { select: { razonSocial: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const todos: PendientesGlobal[] = [];
+  for (const d of diagnosticos) {
+    const participantes = await pendientesDelDiagnostico(d.id);
+    for (const u of participantes) {
+      if (u.alDia) continue;
+      todos.push({
+        ...u,
+        diagnosticoId: d.id,
+        diagnosticoNombre: d.nombre,
+        empresa: d.empresa.razonSocial,
+      });
+    }
+  }
+
+  return todos.sort((a, b) => {
+    if (b.totalPreguntas !== a.totalPreguntas) return b.totalPreguntas - a.totalPreguntas;
+    if (!a.ultimaActividad && b.ultimaActividad) return -1;
+    if (a.ultimaActividad && !b.ultimaActividad) return 1;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
 /** Lo mismo, para una sola persona. */
 export async function pendientesDeUsuario(
   diagnosticoId: string,

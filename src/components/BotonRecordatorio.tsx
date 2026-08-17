@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { enviarRecordatorios } from "./actions";
+import { enviarRecordatorios } from "@/lib/actions/recordatorios";
 
 type Props = {
   diagnosticoId: string;
