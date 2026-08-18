@@ -1,7 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { empresaScope, esStaffP360 } from "@/lib/session";
+import { empresaScope, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 import { calcularMadurez, type DominioInput } from "@/lib/engines/madurez";
 import { respuestaCompleta, type Role } from "@/lib/constants";
 
@@ -14,7 +14,7 @@ export async function assertAccesoDiagnostico(diagnosticoId: string, session: Se
     select: { id: true, empresaId: true, estado: true, fechaInicio: true },
   });
   if (!diag) return null;
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) return null;
+  if (sinAccesoAEmpresa(session, diag.empresaId)) return null;
   return diag;
 }
 
@@ -75,7 +75,7 @@ export async function getDiagnosticoFull(id: string, session: SessionLike) {
   });
 
   if (!diag) notFound();
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) notFound();
+  if (sinAccesoAEmpresa(session, diag.empresaId)) notFound();
   return diag;
 }
 
@@ -236,7 +236,7 @@ export async function getDiagnosticoDominio(
     select: { id: true, nombre: true, empresaId: true, estado: true },
   });
   if (!diag) notFound();
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) notFound();
+  if (sinAccesoAEmpresa(session, diag.empresaId)) notFound();
 
   const dd = await prisma.diagnosticoDominio.findFirst({
     where: { diagnosticoId, dominio: { orden: dominioOrden } },

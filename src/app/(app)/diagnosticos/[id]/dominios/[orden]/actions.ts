@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import { requiereComentario, ROLES, VALORES } from "@/lib/constants";
 import { consolidarAportes } from "@/lib/engines/consolidacion";
@@ -81,7 +81,7 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
   if (!respuesta) return { ok: false, error: "Respuesta no encontrada." };
 
   const diag = respuesta.diagnosticoDominio.diagnostico;
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, diag.empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
   // El Responsable de Dominio solo responde los dominios en los que participa.
@@ -182,7 +182,7 @@ export async function enviarDominio(diagnosticoDominioId: string): Promise<Envio
   });
   if (!dd) return { ok: false, error: "Dominio no encontrado." };
 
-  if (!esStaffP360(session.user.role) && dd.diagnostico.empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, dd.diagnostico.empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
   if (

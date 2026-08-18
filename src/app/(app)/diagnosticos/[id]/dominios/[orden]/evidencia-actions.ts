@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import {
   crearUrlSubidaEvidencia,
@@ -37,7 +37,7 @@ async function autorizarRespuesta(respuestaId: string) {
   });
   if (!respuesta) return { error: "Respuesta no encontrada." as const };
   const diag = respuesta.diagnosticoDominio.diagnostico;
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, diag.empresaId)) {
     return { error: "Sin acceso." as const };
   }
   if (
@@ -152,7 +152,7 @@ export async function descargarEvidenciaAction(
   });
   if (!ev?.archivoPath) return { ok: false, error: "La evidencia no tiene archivo." };
   const empresaId = ev.respuesta?.diagnosticoDominio.diagnostico.empresaId;
-  if (!esStaffP360(session.user.role) && empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
   try {
@@ -183,7 +183,7 @@ export async function eliminarEvidenciaAction(evidenciaId: string): Promise<Evid
   });
   if (!ev) return { ok: false, error: "Evidencia no encontrada." };
   const diag = ev.respuesta?.diagnosticoDominio.diagnostico;
-  if (!esStaffP360(session.user.role) && diag?.empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, diag?.empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
   // El Responsable de Dominio solo gestiona evidencias de los dominios en que participa.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
 import { generarBrechas, type RespuestaBrechaInput } from "@/lib/engines/brechas";
 
@@ -19,7 +19,7 @@ export async function generarBrechasAction(diagnosticoId: string): Promise<Gener
     select: { id: true, empresaId: true },
   });
   if (!diag) return { ok: false, error: "Diagnóstico no encontrado." };
-  if (!esStaffP360(session.user.role) && diag.empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, diag.empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
 

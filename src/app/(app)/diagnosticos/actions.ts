@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 import { assertAccesoDiagnostico } from "@/lib/data/diagnosticos";
 import { TIPO_DIAGNOSTICO, ESTADO_DIAGNOSTICO, ROLES_P360 } from "@/lib/constants";
 
@@ -27,7 +27,7 @@ export async function crearDiagnosticoAction(input: z.input<typeof crearSchema>)
   const { empresaId, nombre, tipo, fechaInicio, fechaCierre, consultorId } = parsed.data;
 
   // Acceso: staff P360 crea para cualquier empresa; ADMIN_EMPRESA solo la suya.
-  if (!esStaffP360(session.user.role) && empresaId !== session.user.empresaId) {
+  if (sinAccesoAEmpresa(session, empresaId)) {
     return { ok: false, error: "Sin acceso a esa empresa." };
   }
 

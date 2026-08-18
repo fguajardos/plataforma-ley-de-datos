@@ -47,11 +47,35 @@ export function esStaffP360(role: Role): boolean {
   return ROLES_P360.includes(role);
 }
 
+type SesionMinima = { user: { role: Role; empresaId: string | null } };
+
 /**
- * Filtro de empresa para queries de diagnósticos: staff P360 ve todo;
- * el resto sólo su empresa.
+ * Filtro de empresa para listar diagnósticos.
+ *
+ * La regla es una sola: **quien tiene una empresa asignada ve esa y ninguna otra**, sea
+ * del cliente o del staff. Eso permite acotar una cuenta de Procesos360 a un entorno de
+ * demostración sin darle un rol distinto: conserva la vista de consultor, pero encerrada.
+ *
+ * El staff sin empresa asignada ve todas las empresas reales, y las de demostración
+ * quedan fuera para que no se mezclen con el trabajo diario.
  */
-export function empresaScope(session: { user: { role: Role; empresaId: string | null } }) {
-  if (esStaffP360(session.user.role)) return {};
-  return { empresaId: session.user.empresaId ?? "__none__" };
+export function empresaScope(session: SesionMinima) {
+  if (session.user.empresaId) return { empresaId: session.user.empresaId };
+  if (esStaffP360(session.user.role)) return { empresa: { esDemo: false } };
+  return { empresaId: "__none__" };
+}
+
+/**
+ * ¿Este usuario NO puede ver un recurso de esta empresa? Misma regla que empresaScope,
+ * aplicada a un recurso concreto (un diagnóstico, una respuesta, una evidencia).
+ *
+ * Reemplaza el control que antes se repetía en doce lugares: tenerlo en uno solo evita
+ * que al agregar una pantalla se olvide, y que las reglas se separen entre sí.
+ */
+export function sinAccesoAEmpresa(
+  session: SesionMinima,
+  empresaIdRecurso: string | null | undefined
+): boolean {
+  if (session.user.empresaId) return empresaIdRecurso !== session.user.empresaId;
+  return !esStaffP360(session.user.role);
 }

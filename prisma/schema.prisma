@@ -30,6 +30,10 @@ model Empresa {
   correoResponsable    String?
   telefono             String?
   activa               Boolean  @default(true)
+  // Empresa de demostración: no aparece en la vista del staff que trabaja los
+  // clientes reales, y solo la ven las cuentas acotadas a ella. Sirve para mostrar
+  // la plataforma sin exponer datos de un cliente ni ensuciar su seguimiento.
+  esDemo               Boolean  @default(false)
   createdAt            DateTime @default(now())
 
   areas        Area[]
