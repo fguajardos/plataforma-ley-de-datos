@@ -51,25 +51,47 @@ export default async function DominioPage({
   }
 
   const evidencias: string[] = JSON.parse(dd.dominio.evidenciasMinimas || "[]");
-  const respondidas = dd.respuestas.filter((r) => r.valor != null).length;
-  // "Completas" = listas para enviar: valor + comentario cuando aplica + evidencia cuando es
-  // obligatoria en 3/4/5. Tener solo un valor NO cuenta como completa.
-  const completas = dd.respuestas.filter((r) =>
-    respuestaCompleta({
-      valor: r.valor,
-      comentario: r.comentario,
-      evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
-      tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
-    })
-  ).length;
-  const dominioEnviado = ["EN_VALIDACION", "COMPLETADO"].includes(dd.estado);
   const total = dd.respuestas.length;
+  const dominioEnviado = ["EN_VALIDACION", "COMPLETADO"].includes(dd.estado);
+
+  // Los contadores miden cosas distintas segun quien mira, y confundirlas desorienta:
+  // el participante necesita saber cuanto lleva EL, no cuanto lleva el dominio. Como
+  // responde a ciegas, decirle "16 de 16 respondidas" por el trabajo de un colega le
+  // hace creer que ya cumplio con algo que ni siquiera puede ver.
+  const miAporte = (r: (typeof dd.respuestas)[number]) =>
+    r.aportes.find((a) => a.userId === session.user.id) ?? null;
+
+  const completaDe = (
+    valor: string | null,
+    comentario: string | null,
+    r: (typeof dd.respuestas)[number]
+  ) =>
+    respuestaCompleta({
+      valor,
+      comentario,
+      evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+      // La evidencia es del dominio, no de cada persona: si un colega ya la subio, cuenta.
+      tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+    });
+
+  // El consultor valida la respuesta oficial; el participante trabaja sobre la suya.
+  const respondidas = puedeValidar
+    ? dd.respuestas.filter((r) => r.valor != null).length
+    : dd.respuestas.filter((r) => miAporte(r)?.valor != null).length;
+  const completas = puedeValidar
+    ? dd.respuestas.filter((r) => completaDe(r.valor, r.comentario, r)).length
+    : dd.respuestas.filter((r) => {
+        const a = miAporte(r);
+        return a ? completaDe(a.valor, a.comentario, r) : false;
+      }).length;
+  const primerPendiente = puedeValidar
+    ? (dd.respuestas.find((r) => r.valor == null)?.pregunta.orden ?? null)
+    : (dd.respuestas.find((r) => miAporte(r)?.valor == null)?.pregunta.orden ?? null);
+
   // Participantes que ya aportaron al menos una respuesta (contador del encabezado).
   const contribuyeron = new Set(dd.respuestas.map((r) => r.respondidoPorId).filter(Boolean)).size;
   const responsablesEvidencia = dd.participantes.filter((p) => p.responsableEvidencia);
   const yoResponsableEvidencia = responsablesEvidencia.some((p) => p.userId === session.user.id);
-  // Primera pregunta sin responder, para el botón "Continuar donde quedaste".
-  const primerPendiente = dd.respuestas.find((r) => r.valor == null)?.pregunta.orden ?? null;
 
   return (
     <>
@@ -80,10 +102,10 @@ export default async function DominioPage({
       </div>
       <PageHeader
         title={`Dominio ${dd.dominio.orden}: ${dd.dominio.nombre}`}
-        subtitle={`${completas} de ${total} preguntas completas${
+        subtitle={`${puedeValidar ? "" : "Tus respuestas: "}${completas} de ${total} preguntas completas${
           respondidas > completas ? ` (${respondidas} con nota, faltan datos)` : ""
         }${
-          participantes.length > 0
+          puedeValidar && participantes.length > 0
             ? ` · ${contribuyeron} de ${participantes.length} participantes`
             : ""
         }`}

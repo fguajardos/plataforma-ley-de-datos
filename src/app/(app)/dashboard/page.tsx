@@ -274,6 +274,8 @@ async function DashboardEmpresa({
           comentario: true,
           evidencias: { select: { archivoPath: true } },
           pregunta: { select: { evidenciaObligatoria: true } },
+          // Solo el aporte de quien mira: su avance es el suyo, no el del dominio.
+          aportes: { where: { userId }, select: { valor: true, comentario: true } },
         },
       },
     },
@@ -306,8 +308,28 @@ async function DashboardEmpresa({
       evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
       tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
     });
+
+  // El Responsable de Dominio ve SU avance. Mostrarle el del dominio le hace creer que
+  // ya respondio cuando en realidad respondio un colega —y como trabaja a ciegas, ni
+  // siquiera puede ver ese trabajo para darse cuenta del malentendido.
+  const miCompleta = (r: {
+    evidencias: { archivoPath: string | null }[];
+    pregunta: { evidenciaObligatoria: boolean };
+    aportes: { valor: string | null; comentario: string | null }[];
+  }) => {
+    const a = r.aportes[0];
+    if (!a) return false;
+    return respuestaCompleta({
+      valor: a.valor,
+      comentario: a.comentario,
+      evidenciaObligatoria: r.pregunta.evidenciaObligatoria,
+      // La evidencia es del dominio: si un colega ya la subio, cuenta para todos.
+      tieneEvidencia: r.evidencias.some((e) => e.archivoPath),
+    });
+  };
+
   const completasAlcance = esResponsable
-    ? misDominios.reduce((a, d) => a + d.respuestas.filter(esCompleta).length, 0)
+    ? misDominios.reduce((a, d) => a + d.respuestas.filter(miCompleta).length, 0)
     : incluidos.reduce((a, d) => a + d.respuestas.filter(esCompleta).length, 0);
   const avance = totalAlcance ? Math.round((completasAlcance / totalAlcance) * 100) : 0;
 
@@ -338,7 +360,7 @@ async function DashboardEmpresa({
           <CardContent className="flex flex-wrap gap-3">
             {misDominios.map((d) => {
               const tot = d.dominio._count.preguntas;
-              const resp = d.respuestas.filter((r) => r.valor != null).length;
+              const resp = d.respuestas.filter((r) => r.aportes[0]?.valor != null).length;
               return (
                 <Link
                   key={d.id}
