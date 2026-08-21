@@ -115,7 +115,10 @@ async function SeguimientoResumen({ session }: { session: SessionLike }) {
   const pendientes = await pendientesGlobales(empresaScope(session));
   if (pendientes.length === 0) return null;
 
-  const sinEntrar = pendientes.filter((u) => !u.ultimaActividad).length;
+  // Mide que no registran ni una respuesta, no que no hayan ingresado: para eso está
+  // Accesos, que mira el consentimiento. Decirle "nunca ha entrado" a alguien que sí
+  // entró y no contestó hacía que las dos pantallas se contradijeran.
+  const sinActividad = pendientes.filter((u) => !u.ultimaActividad).length;
   // Un diagnóstico por empresa es lo habitual: si todos son del mismo, sobra repetirlo.
   const variosDiagnosticos = new Set(pendientes.map((d) => d.diagnosticoId)).size > 1;
   const visibles = pendientes.slice(0, 6);
@@ -127,7 +130,8 @@ async function SeguimientoResumen({ session }: { session: SessionLike }) {
           <CardTitle>Participantes con pendientes</CardTitle>
           <p className="mt-0.5 text-xs text-slate-400">
             {pendientes.length} {pendientes.length === 1 ? "persona" : "personas"}
-            {sinEntrar > 0 && ` · ${sinEntrar} nunca ${sinEntrar === 1 ? "ha entrado" : "han entrado"}`}
+            {sinActividad > 0 &&
+              ` · ${sinActividad} sin responder nada`}
           </p>
         </div>
         <Link
@@ -148,7 +152,7 @@ async function SeguimientoResumen({ session }: { session: SessionLike }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-slate-800">{u.nombre}</span>
                   {u.cargo && <span className="text-xs text-slate-400">{u.cargo}</span>}
-                  {!u.ultimaActividad && <Badge color="orange">Nunca ha entrado</Badge>}
+                  {!u.ultimaActividad && <Badge color="orange">Sin responder nada</Badge>}
                   {u.totalPreguntas === 0 && u.evidenciasPendientes > 0 && (
                     <Badge color="yellow">Falta evidencia</Badge>
                   )}

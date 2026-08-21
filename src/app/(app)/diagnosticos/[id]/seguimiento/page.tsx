@@ -39,8 +39,24 @@ export default async function SeguimientoPage({
   const participantes = await pendientesDelDiagnostico(id);
   const pendientes = participantes.filter((u) => !u.alDia);
   const alDia = participantes.filter((u) => u.alDia);
-  const sinEntrar = participantes.filter((u) => !u.ultimaActividad);
-  const preguntasPendientes = pendientes.reduce((n, u) => n + u.totalPreguntas, 0);
+  const sinActividad = participantes.filter((u) => !u.ultimaActividad);
+
+  // Dos medidas distintas, y confundirlas hacía que el panel se contradijera solo:
+  // decía "74% del levantamiento" y justo debajo "75 preguntas por responder" sobre un
+  // total de 70. Una cuenta preguntas; la otra, respuestas individuales.
+  //
+  //   · sinResponder  — preguntas que NADIE ha contestado. Es la misma unidad que el
+  //                     avance del levantamiento, así que los dos números conversan.
+  //   · porRegistrar  — respuestas individuales que faltan. Una pregunta que tres
+  //                     personas deben mirar cuenta tres veces, porque son tres tareas.
+  const porRegistrar = pendientes.reduce((n, u) => n + u.totalPreguntas, 0);
+  // `sinResponder` se calcula por dominio, no por persona: es idéntico para todos los
+  // participantes del mismo dominio, así que tomar el de cualquiera no lo duplica.
+  const sinResponderPorDominio = new Map<number, number>();
+  for (const u of pendientes) {
+    for (const d of u.dominios) sinResponderPorDominio.set(d.orden, d.sinResponder);
+  }
+  const sinResponder = [...sinResponderPorDominio.values()].reduce((a, b) => a + b, 0);
   // Las evidencias se cuentan por dominio, no por persona: si dos participantes comparten
   // un dominio, el documento que falta es el mismo y sumarlo dos veces engaña.
   const evidenciasPorSubir = new Map<number, number>();
@@ -65,11 +81,26 @@ export default async function SeguimientoPage({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Con pendientes" valor={pendientes.length} total={participantes.length} />
-        <Kpi label="Preguntas por responder" valor={preguntasPendientes} />
+        <Kpi
+          label="Preguntas sin responder"
+          valor={sinResponder}
+          nota="nadie las ha contestado"
+          alerta={sinResponder > 0}
+        />
+        <Kpi
+          label="Respuestas por registrar"
+          valor={porRegistrar}
+          nota={`entre ${pendientes.length} ${pendientes.length === 1 ? "persona" : "personas"}`}
+        />
         <Kpi label="Evidencias por subir" valor={totalEvidencias} alerta={totalEvidencias > 0} />
-        <Kpi label="Nunca han entrado" valor={sinEntrar.length} alerta={sinEntrar.length > 0} />
+        <Kpi
+          label="Sin responder nada"
+          valor={sinActividad.length}
+          nota="no registran ni una"
+          alerta={sinActividad.length > 0}
+        />
         <Kpi label="Al día" valor={alDia.length} bueno={alDia.length > 0} />
       </div>
 
@@ -94,7 +125,9 @@ export default async function SeguimientoPage({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-slate-900">{u.nombre}</span>
                         {u.cargo && <span className="text-xs text-slate-400">{u.cargo}</span>}
-                        {!u.ultimaActividad && <Badge color="orange">Nunca ha entrado</Badge>}
+                        {!u.ultimaActividad && (
+                          <Badge color="orange">Sin responder nada</Badge>
+                        )}
                         {u.totalPreguntas === 0 && u.evidenciasPendientes > 0 && (
                           <Badge color="yellow">Falta evidencia</Badge>
                         )}
@@ -169,12 +202,15 @@ function Kpi({
   label,
   valor,
   total,
+  nota,
   alerta,
   bueno,
 }: {
   label: string;
   valor: number;
   total?: number;
+  /** Aclara la unidad cuando el número solo se entiende sabiendo qué cuenta. */
+  nota?: string;
   alerta?: boolean;
   bueno?: boolean;
 }) {
@@ -186,6 +222,7 @@ function Kpi({
         {valor}
         {total != null && <span className="text-base font-normal text-slate-400"> / {total}</span>}
       </p>
+      {nota && <p className="mt-0.5 text-[11px] leading-tight text-slate-400">{nota}</p>}
     </div>
   );
 }
