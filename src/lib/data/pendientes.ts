@@ -21,12 +21,24 @@ export type PendienteDominio = {
   listoSinEnviar: boolean; // completo, solo falta mandarlo a validación
 };
 
+/**
+ * Dominio ya cerrado en el que esta persona no alcanzó a registrar nada.
+ *
+ * Se lleva aparte de los pendientes porque no es una tarea suya: el dominio está en solo
+ * lectura y no puede hacer nada al respecto. Pero tampoco puede desaparecer, que es lo
+ * que pasaba: al cerrarse un dominio, lo que le faltaba a quien quedó fuera se borraba
+ * del panel y nadie volvía a enterarse. Es una decisión del consultor —reabrir el dominio
+ * o darlo por cerrado con lo que hay—, y para tomarla primero tiene que verlo.
+ */
+export type DominioCerradoSinAporte = { orden: number; nombre: string; faltan: number };
+
 export type PendientesUsuario = {
   userId: string;
   nombre: string;
   email: string;
   cargo: string | null;
   dominios: PendienteDominio[];
+  cerradosSinAporte: DominioCerradoSinAporte[];
   totalPreguntas: number; // sinResponder + sinTuMirada, sumado
   evidenciasPendientes: number; // preguntas ya respondidas a las que les falta el respaldo
   aportes: number; // cuánto ha respondido en total
@@ -98,7 +110,7 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
       if (!acc) {
         acc = {
           userId: u.id, nombre: u.nombre, email: u.email, cargo: u.cargo,
-          dominios: [], totalPreguntas: 0, evidenciasPendientes: 0, aportes: 0,
+          dominios: [], cerradosSinAporte: [], totalPreguntas: 0, evidenciasPendientes: 0, aportes: 0,
           ultimaActividad: null, ultimoRecordatorio: u.ultimoRecordatorio, alDia: true,
         };
         porUsuario.set(u.id, acc);
@@ -113,7 +125,20 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
         }
       }
 
-      if (bloqueado) continue; // ya enviado: no hay nada que pedirle
+      if (bloqueado) {
+        // Ya enviado: no hay nada que pedirle, pero si quedó fuera hay que decirlo.
+        const faltan = dd.respuestas.filter(
+          (r) => !r.aportes.some((a) => a.userId === u.id)
+        ).length;
+        if (faltan > 0) {
+          acc.cerradosSinAporte.push({
+            orden: dd.dominio.orden,
+            nombre: dd.dominio.nombre,
+            faltan,
+          });
+        }
+        continue;
+      }
 
       const sinResponder = dd.respuestas.filter((r) => r.valor == null).length;
       const sinTuMirada = dd.respuestas.filter(

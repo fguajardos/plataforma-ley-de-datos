@@ -22,7 +22,10 @@ process.env.DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-const TABLAS = ["Respuesta", "AporteRespuesta", "Evidencia"];
+// DiagnosticoDominio se suma porque enviar un dominio a validación lo cierra para
+// TODOS sus participantes, y cuando eso ocurre antes de tiempo la primera pregunta es
+// quién lo hizo y cuándo. Sin registro, esa pregunta no tenía respuesta.
+const TABLAS = ["Respuesta", "AporteRespuesta", "Evidencia", "DiagnosticoDominio"];
 
 const FUNCION = `
 CREATE OR REPLACE FUNCTION registrar_cambio() RETURNS trigger

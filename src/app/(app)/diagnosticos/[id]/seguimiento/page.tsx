@@ -57,6 +57,9 @@ export default async function SeguimientoPage({
     for (const d of u.dominios) sinResponderPorDominio.set(d.orden, d.sinResponder);
   }
   const sinResponder = [...sinResponderPorDominio.values()].reduce((a, b) => a + b, 0);
+  // Se recorre a TODOS, no solo a los que tienen pendientes: alguien puede estar al día
+  // en lo abierto y aun así haber quedado fuera de un dominio que se cerró antes.
+  const quedaronFuera = participantes.filter((u) => u.cerradosSinAporte.length > 0);
   // Las evidencias se cuentan por dominio, no por persona: si dos participantes comparten
   // un dominio, el documento que falta es el mismo y sumarlo dos veces engaña.
   const evidenciasPorSubir = new Map<number, number>();
@@ -103,6 +106,39 @@ export default async function SeguimientoPage({
         />
         <Kpi label="Al día" valor={alDia.length} bueno={alDia.length > 0} />
       </div>
+
+      {quedaronFuera.length > 0 && (
+        <Card className="mb-6 border-orange-200">
+          <CardHeader>
+            <CardTitle>Cerrados sin el aporte de todos</CardTitle>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Estos dominios se enviaron a validación mientras estas personas no habían
+              registrado su respuesta. No pueden hacer nada: el dominio está en solo lectura.
+              Decide si lo reabres para recoger su mirada o lo das por cerrado así.
+            </p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-slate-100">
+              {quedaronFuera.map((u) => (
+                <li key={u.userId} className="px-5 py-3">
+                  <span className="text-sm font-medium text-slate-800">{u.nombre}</span>
+                  {u.cargo && <span className="ml-2 text-xs text-slate-400">{u.cargo}</span>}
+                  <ul className="mt-1 space-y-0.5">
+                    {u.cerradosSinAporte.map((d) => (
+                      <li key={d.orden} className="text-sm text-orange-700">
+                        {d.orden}. {d.nombre} —{" "}
+                        {d.faltan === 1
+                          ? "quedó 1 pregunta sin su respuesta"
+                          : `quedaron ${d.faltan} preguntas sin su respuesta`}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="mb-6">
         <CardHeader className="flex flex-wrap items-center justify-between gap-3">
