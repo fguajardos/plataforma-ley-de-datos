@@ -19,7 +19,7 @@ import type { NivelMadurez } from "@/lib/constants";
 export type EstadoDominio =
   | "SIN_INICIAR" // nadie ha registrado nada
   | "EN_CURSO" // hay avance, falta gente o preguntas
-  | "CERRADO_INCOMPLETO" // se envió a validación sin todas las miradas
+  | "CERRADO_INCOMPLETO" // cerrado, pero sin todas las miradas: alcance acotado
   | "COMPLETO"; // todos respondieron todo, con su respaldo
 
 export type FilaPanel = {

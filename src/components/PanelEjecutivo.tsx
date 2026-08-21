@@ -32,8 +32,13 @@ const ESTADO: Record<
     texto: "text-blue-700",
     fondo: "bg-blue-50",
   },
+  // "Cerrado sin todos" no se entendía, y llamarlo "En curso" sería falso: el dominio
+  // está en solo lectura y su gente no puede escribir. Se llama por lo que es —cerrado—
+  // y el aviso lo dan el color y la columna de personas, que queda en 2/5 y en naranja.
+  // Con el resguardo que impide a un participante cerrar sobre sus colegas, llegar aquí
+  // ya solo puede ser una decisión deliberada del consultor de acotar el alcance.
   CERRADO_INCOMPLETO: {
-    label: "Cerrado sin todos",
+    label: "Cerrado",
     barra: "bg-orange-500",
     texto: "text-orange-700",
     fondo: "bg-orange-50",
