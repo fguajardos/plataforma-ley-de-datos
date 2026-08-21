@@ -50,6 +50,10 @@ export async function getDiagnosticoFull(id: string, session: SessionLike) {
     include: {
       empresa: true,
       consultor: { select: { id: true, nombre: true } },
+      equipo: {
+        include: { user: { select: { id: true, nombre: true, cargo: true } } },
+        orderBy: { user: { nombre: "asc" } },
+      },
       dominios: {
         orderBy: { dominio: { orden: "asc" } },
         include: {

@@ -16,6 +16,10 @@ export default async function DiagnosticoDetallePage({
   const { id } = await params;
   const session = await requireSession();
   const diag = await getDiagnosticoFull(id, session);
+  // El equipo, sin repetir a quien ya figura a cargo.
+  const apoyo = diag.equipo
+    .filter((e) => e.userId !== diag.consultorId)
+    .map((e) => e.user.nombre);
   const madurez = madurezDeDiagnostico(diag);
 
   const dominiosIncluidos = diag.dominios.filter((d) => d.incluido);
@@ -87,8 +91,15 @@ export default async function DiagnosticoDetallePage({
           </StatCard>
           <StatCard label="Consultor">
             <span className="text-sm font-medium text-slate-700">
-              {diag.consultor?.nombre ?? "—"}
+              {diag.consultor?.nombre ?? "Sin asignar"}
             </span>
+            {/* El resto del equipo: si el que está a cargo no está, el cliente tiene que
+                saber a quién más puede dirigirse. */}
+            {apoyo.length > 0 && (
+              <span className="mt-0.5 block text-xs text-slate-400">
+                con {apoyo.join(", ")}
+              </span>
+            )}
           </StatCard>
         </div>
       )}

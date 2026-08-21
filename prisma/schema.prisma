@@ -97,7 +97,8 @@ model User {
   // rol nuevo porque no cambia nada más de lo que esa persona puede hacer.
   coordinaSeguimiento Boolean @default(false)
 
-  diagnosticosConsultor Diagnostico[]        @relation("consultor")
+  diagnosticosConsultor Diagnostico[]              @relation("consultor")
+  equiposConsultor      ConsultorDiagnostico[]     @relation("equipoConsultor")
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
   aportes               AporteRespuesta[]
@@ -120,8 +121,8 @@ model AceptacionConsentimiento {
 // ───────────────────────── Catálogo LPDP ─────────────────────────
 
 model Dominio {
-  id                String  @id @default(cuid())
-  orden             Int     @unique
+  id                String @id @default(cuid())
+  orden             Int    @unique
   nombre            String
   objetivo          String
   evidenciasMinimas String // JSON array (string)
@@ -156,14 +157,35 @@ model Diagnostico {
   estado      String    @default("BORRADOR") // BORRADOR, CONFIGURADO, EN_EJECUCION, EN_VALIDACION, CON_BRECHAS, CON_PLAN, EN_SEGUIMIENTO, PREPARADO_CERT, CERRADO
   fechaInicio DateTime?
   fechaCierre DateTime?
+  // Consultor a cargo: el que responde por el diagnostico ante el cliente. El resto del
+  // equipo asignado va en `equipo`; este campo se conserva como el lider, para que el
+  // expediente y los reportes siempre tengan un nombre al que dirigirse.
   consultorId String?
   consultor   User?     @relation("consultor", fields: [consultorId], references: [id])
   createdAt   DateTime  @default(now())
 
   dominios DiagnosticoDominio[]
+  equipo   ConsultorDiagnostico[]
   brechas  Brecha[]
   riesgos  Riesgo[]
   acciones AccionTratamiento[]
+}
+
+// Equipo consultor asignado a un diagnostico.
+//
+// Ninguna asesoria la lleva una sola persona: si el lider no esta, el cliente tiene que
+// saber a quien mas puede dirigirse, y el expediente tiene que acreditar quienes
+// intervinieron. No otorga permisos —el staff de Procesos360 ya ve todas las empresas—:
+// deja constancia de quien responde por este trabajo.
+model ConsultorDiagnostico {
+  id            String      @id @default(cuid())
+  diagnosticoId String
+  diagnostico   Diagnostico @relation(fields: [diagnosticoId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation("equipoConsultor", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([diagnosticoId, userId])
 }
 
 model DiagnosticoDominio {
@@ -241,13 +263,13 @@ model Respuesta {
 // Los disparadores se instalan con prisma/instalar-historial.ts (Prisma no gestiona
 // triggers). La purga a 12 meses la hace prisma/purgar-historial.ts.
 model HistorialCambio {
-  id          Int      @id @default(autoincrement())
-  tabla       String // Respuesta, AporteRespuesta, Evidencia
-  registroId  String // id de la fila afectada
-  operacion   String // INSERT, UPDATE, DELETE
-  anterior    Json? // fila completa antes del cambio (null en INSERT)
-  nuevo       Json? // fila completa después del cambio (null en DELETE)
-  fecha       DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  tabla      String // Respuesta, AporteRespuesta, Evidencia
+  registroId String // id de la fila afectada
+  operacion  String // INSERT, UPDATE, DELETE
+  anterior   Json? // fila completa antes del cambio (null en INSERT)
+  nuevo      Json? // fila completa después del cambio (null en DELETE)
+  fecha      DateTime @default(now())
 
   @@index([tabla, registroId, fecha])
   @@index([fecha])
