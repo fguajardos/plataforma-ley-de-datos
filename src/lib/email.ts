@@ -14,6 +14,19 @@ export function correoConfigurado(): boolean {
   return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 }
 
+/**
+ * ¿Este entorno puede escribirle a una persona de verdad?
+ *
+ * La respuesta por defecto es NO, y hay que habilitarlo a mano. Es deliberado: un
+ * ambiente de pruebas al que se le olvidó una variable no puede terminar mandándole
+ * credenciales a los participantes del cliente. Producción en Vercel se reconoce sola;
+ * la línea de comandos necesita LPDP_CORREO_REAL=true en su .env.
+ */
+function entregaReal(): boolean {
+  if (process.env.VERCEL_ENV) return process.env.VERCEL_ENV === "production";
+  return process.env.LPDP_CORREO_REAL === "true";
+}
+
 export async function enviarCorreo(
   to: string,
   subject: string,
@@ -23,6 +36,22 @@ export async function enviarCorreo(
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!key || !from) throw new Error("Falta RESEND_API_KEY o EMAIL_FROM.");
+
+  // Fuera de producción, el correo se desvía a la casilla de pruebas y el asunto dice a
+  // quién habría llegado. Si no hay casilla configurada no se envía nada: es preferible
+  // que una prueba falle a que le llegue un recordatorio real a alguien del cliente.
+  if (!entregaReal()) {
+    const pruebas = process.env.EMAIL_PRUEBAS;
+    if (!pruebas) {
+      throw new Error(
+        `Entorno de pruebas sin EMAIL_PRUEBAS: no se envió nada (iba a ${to}).`
+      );
+    }
+    // El asunto conserva el destinatario original: en una casilla que recibe todo el
+    // correo de las pruebas, sin eso no se distingue a quién iba dirigido cada uno.
+    subject = `[UAT → ${to}] ${subject}`;
+    to = pruebas;
+  }
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",

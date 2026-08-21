@@ -18,11 +18,9 @@ for (const line of readFileSync(join(__dirname, "..", ".env"), "utf-8").split("\
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
 }
 import { PrismaClient } from "@prisma/client";
-import { plantillaCredenciales } from "../src/lib/email";
+import { plantillaCredenciales , enviarCorreo } from "../src/lib/email";
 
 const prisma = new PrismaClient();
-const RESEND_API_KEY = process.env.RESEND_API_KEY!;
-const EMAIL_FROM = process.env.EMAIL_FROM!;
 
 type Cred = { nombre: string; email: string; cargo: string; password: string };
 
@@ -45,16 +43,6 @@ function leerCSV(): Map<string, Cred> {
 // seccion de accesos de la plataforma. Aqui la contrasena sale del CSV del alta
 // inicial; alla se genera una nueva, porque la original no se puede recuperar.
 
-async function enviarResend(to: string, subject: string, html: string, text: string) {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: EMAIL_FROM, to, subject, html, text }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(body)}`);
-  return body?.id as string;
-}
 
 async function dominiosDe(email: string): Promise<string[]> {
   const user = await prisma.user.findUnique({
@@ -78,8 +66,6 @@ async function main() {
   const allHonda = args.includes("--all-honda");
   const testIdx = args.indexOf("--test");
   const testTo = testIdx >= 0 ? args[testIdx + 1] : null;
-
-  if (!RESEND_API_KEY || !EMAIL_FROM) throw new Error("Falta RESEND_API_KEY o EMAIL_FROM en .env");
 
   const cred = leerCSV();
 
@@ -105,7 +91,7 @@ async function main() {
     const { subject, html, text } = plantillaCredenciales(c.nombre, c.email, c.password, doms);
     console.log(`[TEST] Enviando a ${testTo} la version de ${c.nombre} (${modeloEmail})...`);
     if (dryRun) { console.log("  (dry-run: no se envio)"); return; }
-    const id = await enviarResend(testTo, `[PRUEBA] ${subject}`, html, text);
+    const id = await enviarCorreo(testTo, `[PRUEBA] ${subject}`, html, text);
     console.log(`  Enviado. id=${id}`);
     return;
   }
@@ -127,7 +113,7 @@ async function main() {
       continue;
     }
     try {
-      const id = await enviarResend(email, subject, html, text);
+      const id = await enviarCorreo(email, subject, html, text);
       console.log(`  ✓ ${email}  id=${id}`);
     } catch (e) {
       console.log(`  ✗ ${email}  ERROR: ${(e as Error).message}`);

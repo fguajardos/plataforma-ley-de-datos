@@ -24,12 +24,10 @@ for (const line of readFileSync(join(__dirname, "..", ".env"), "utf-8").split("\
 }
 process.env.DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
 import { PrismaClient } from "@prisma/client";
-import { plantillaActivacion, DIAS_VIGENCIA_ENLACE } from "../src/lib/email";
+import { plantillaActivacion, DIAS_VIGENCIA_ENLACE , enviarCorreo } from "../src/lib/email";
 
 const prisma = new PrismaClient();
 const APP_URL = "https://lpdp.procesos360.cl";
-const RESEND_API_KEY = process.env.RESEND_API_KEY!;
-const EMAIL_FROM = process.env.EMAIL_FROM!;
 
 /** Genera y guarda un token de un solo uso. Reemplaza cualquier anterior. */
 async function nuevoEnlace(userId: string): Promise<string> {
@@ -45,16 +43,6 @@ async function nuevoEnlace(userId: string): Promise<string> {
 // La plantilla vive en src/lib/email.ts: la comparten esta linea de comandos y la
 // seccion de accesos de la plataforma, y tienen que decir exactamente lo mismo.
 
-async function enviarResend(to: string, subject: string, html: string, text: string) {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: EMAIL_FROM, to, subject, html, text }),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(body)}`);
-  return body?.id as string;
-}
 
 async function dominiosDe(userId: string): Promise<string[]> {
   const p = await prisma.participanteDominio.findMany({
@@ -111,7 +99,7 @@ async function main() {
     const { subject, html, text } = plantillaActivacion(u.nombre, enlace, await dominiosDe(u.id));
     const to = testTo ?? u.email;
     try {
-      const id = await enviarResend(to, testTo ? `[PRUEBA] ${subject}` : subject, html, text);
+      const id = await enviarCorreo(to, testTo ? `[PRUEBA] ${subject}` : subject, html, text);
       console.log(`  ✓ ${to} (${u.nombre})  id=${id}`);
     } catch (e) {
       console.log(`  ✗ ${to}  ERROR: ${(e as Error).message.slice(0, 120)}`);
