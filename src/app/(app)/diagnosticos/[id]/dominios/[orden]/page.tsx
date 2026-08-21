@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { PreguntaItem } from "./PreguntaItem";
 import { EnviarDominio } from "./EnviarDominio";
+import { ValidacionDominio } from "./ValidacionDominio";
 
 export default async function DominioPage({
   params,
@@ -192,6 +193,7 @@ export default async function DominioPage({
                 comentario: editable.comentario,
                 riesgoIdentificado: editable.riesgoIdentificado,
                 estado: r.estado,
+                observacionConsultor: r.observacionConsultor,
               }}
               aportes={
                 puedeValidar
@@ -227,12 +229,30 @@ export default async function DominioPage({
         </CardContent>
       </Card>
 
-      <EnviarDominio
-        diagnosticoDominioId={dd.id}
-        totalPreguntas={total}
-        respondidas={completas}
-        enviado={dominioEnviado}
-      />
+      {puedeValidar && dominioEnviado ? (
+        <ValidacionDominio
+          diagnosticoDominioId={dd.id}
+          completado={dd.estado === "COMPLETADO"}
+          total={total}
+          validadas={dd.respuestas.filter((r) => r.estado === "VALIDADA").length}
+          observadas={dd.respuestas.filter((r) => r.estado === "OBSERVADA").length}
+          sinEvidencia={
+            dd.respuestas.filter(
+              (r) =>
+                r.pregunta.evidenciaObligatoria &&
+                ["3", "4", "5"].includes(r.valor ?? "") &&
+                !r.evidencias.some((e) => e.archivoPath)
+            ).length
+          }
+        />
+      ) : (
+        <EnviarDominio
+          diagnosticoDominioId={dd.id}
+          totalPreguntas={total}
+          respondidas={completas}
+          enviado={dominioEnviado}
+        />
+      )}
     </>
   );
 }

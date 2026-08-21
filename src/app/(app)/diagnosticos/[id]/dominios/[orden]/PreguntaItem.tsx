@@ -7,6 +7,7 @@ import { Badge, Textarea, Input, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { EvidenciasPregunta, type EvidenciaVM } from "./EvidenciasPregunta";
 import { HistorialPregunta } from "./HistorialPregunta";
+import { ValidarRespuesta } from "./ValidarRespuesta";
 
 type Props = {
   respuesta: {
@@ -15,6 +16,7 @@ type Props = {
     comentario: string | null;
     riesgoIdentificado: string | null;
     estado: string;
+    observacionConsultor: string | null;
   };
   pregunta: { orden: number; texto: string; descripcion: string; evidenciaObligatoria: boolean };
   evidencias?: EvidenciaVM[];
@@ -69,13 +71,20 @@ export function PreguntaItem({
   // Guardado automático: se dispara cuando el usuario deja de editar. Acepta respuestas
   // incompletas (quedan como borrador) para no perder nunca lo avanzado; la exigencia de
   // completitud se aplica al enviar el dominio.
-  const primeraCarga = useRef(true);
+  // Se guarda solo si el CONTENIDO cambió. Antes bastaba con que cambiara cualquier
+  // dependencia del efecto: al observar una pregunta, `soloLectura` pasaba a false y eso
+  // disparaba un guardado que pisaba el estado OBSERVADA recién puesto por el consultor.
+  const ultimoGuardado = useRef(
+    JSON.stringify({
+      valor: respuesta.valor,
+      comentario: respuesta.comentario ?? "",
+      riesgo: respuesta.riesgoIdentificado ?? "",
+    })
+  );
   useEffect(() => {
-    if (primeraCarga.current) {
-      primeraCarga.current = false;
-      return;
-    }
     if (soloLectura || valor == null) return;
+    const actual = JSON.stringify({ valor, comentario, riesgo });
+    if (actual === ultimoGuardado.current) return;
 
     setGuardado("guardando");
     const t = setTimeout(async () => {
@@ -86,6 +95,7 @@ export function PreguntaItem({
         riesgoIdentificado: riesgo,
       });
       if (res.ok) {
+        ultimoGuardado.current = actual;
         setEstado(!requiereComentario(valor) || comentario.trim() ? "RESPONDIDA" : "PENDIENTE");
         setGuardado("ok");
         setError(null);
@@ -123,6 +133,20 @@ export function PreguntaItem({
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-500">{pregunta.descripcion}</p>
+
+          {estado === "OBSERVADA" && respuesta.observacionConsultor && (
+            <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                Observación del consultor
+              </p>
+              <p className="mt-0.5 text-sm text-orange-900">{respuesta.observacionConsultor}</p>
+              {!soloLectura && !puedeValidar && (
+                <p className="mt-1 text-xs text-orange-700">
+                  Puedes corregir esta pregunta aunque el resto del dominio esté cerrado.
+                </p>
+              )}
+            </div>
+          )}
           {pregunta.evidenciaObligatoria &&
             (["3", "4", "5"].includes(valor ?? "") ? (
               <p className="mt-1 text-xs font-medium text-orange-600">Requiere evidencia documental</p>
@@ -241,6 +265,10 @@ export function PreguntaItem({
             evidencias={evidencias ?? []}
             puedeValidar={!!puedeValidar}
           />
+
+          {puedeValidar && bloqueado && (
+            <ValidarRespuesta respuestaId={respuesta.id} estado={estado} />
+          )}
 
           {/* Bitácora de la pregunta: quién cambió qué y cuándo. Solo el consultor. */}
           {puedeValidar && <HistorialPregunta respuestaId={respuesta.id} />}
