@@ -25,6 +25,11 @@ export type AvanceDominio = {
   // en un dominio sin iniciar no es "0", es que todavía no se sabe.
   promedio: number | null;
   nivel: NivelMadurez | null;
+  // Cuánta gente respondió, aparte de cuánto se respondió. Un dominio puede verse
+  // completo porque una sola persona lo contestó entero, y esa lectura engaña: el
+  // levantamiento pierde justamente las miradas que no quedaron registradas.
+  participantes: number;
+  participantesActivos: number;
 };
 
 export type AvanceDiagnostico = {
@@ -109,11 +114,20 @@ export async function avanceDelDiagnostico(diagnosticoId: string): Promise<Avanc
         ? null
         : Math.round((puntuables.reduce((a, b) => a + b, 0) / puntuables.length) * 100) / 100;
 
+    const aportaronAqui = new Set<string>();
+    for (const r of dd.respuestas) {
+      for (const a of r.aportes) aportaronAqui.add(a.userId);
+    }
+
     dominios.push({
       orden: dd.dominio.orden,
       nombre: dd.dominio.nombre,
       total: t,
       completas: c,
+      participantes: dd.participantes.length,
+      // Solo cuenta quien figura como participante: el consultor también puede escribir
+      // la respuesta oficial, y eso no es la mirada de un área del cliente.
+      participantesActivos: dd.participantes.filter((x) => aportaronAqui.has(x.userId)).length,
       porcentaje: pct(c, t),
       estado: dd.estado,
       cerrado: CERRADOS.includes(dd.estado),
