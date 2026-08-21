@@ -86,6 +86,11 @@ model User {
   // Última vez que se le envió un recordatorio, para no insistirle de más.
   ultimoRecordatorio DateTime?
 
+  // Última vez que se le mandó el acceso (enlace de activación o contraseña nueva).
+  // Sin esto no hay forma de saber a quién ya se le escribió, y termina recibiendo
+  // tres correos distintos de tres personas del equipo el mismo día.
+  ultimoAccesoEnviado DateTime?
+
   // La contraparte del cliente que lleva el control interno del levantamiento: ve el
   // seguimiento de SU empresa y puede recordarle a sus colegas, sin dejar de ser un
   // participante más que responde sus propios dominios. Es un permiso puntual y no un

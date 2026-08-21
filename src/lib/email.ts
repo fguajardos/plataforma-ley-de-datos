@@ -158,3 +158,143 @@ Procesos360 · Diagnóstico LPDP Honda`;
 
   return { subject, html, text };
 }
+
+// ───────────────────────── Acceso a la plataforma ─────────────────────────
+//
+// Dos formas de entregar el acceso, para dos situaciones distintas:
+//
+//   · El enlace de activación es el camino normal. La contraseña nunca viaja ni queda
+//     archivada en una bandeja de entrada, y los filtros corporativos no leen el correo
+//     como phishing —Honda llegó a bloquear al remitente justamente por eso—.
+//   · La contraseña escrita se reserva para cuando la persona no logra usar el enlace.
+//     Sirve de inmediato y no depende de que abra nada.
+//
+// Las plantillas viven aquí y no en los scripts porque las usan la sección de accesos
+// de la plataforma y la línea de comandos, y ambas tienen que decir lo mismo.
+
+export const DIAS_VIGENCIA_ENLACE = 7;
+
+function listaDominiosHtml(dominios: string[]): string {
+  if (dominios.length === 0) return "";
+  return `<p style="margin:16px 0 6px;line-height:1.6">Vas a responder ${
+    dominios.length === 1 ? "el siguiente dominio" : "los siguientes dominios"
+  }:</p>
+   <ul style="margin:0 0 8px;padding-left:20px;line-height:1.6;color:#111827">${dominios
+     .map((d) => `<li style="margin:2px 0">${d}</li>`)
+     .join("")}</ul>`;
+}
+
+function envoltorio(cuerpo: string): string {
+  return `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2937">
+  <div style="max-width:560px;margin:0 auto;padding:24px">
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px">
+      <p style="margin:0 0 4px;font-size:13px;color:#6b7280">Procesos360 · Ley 21.719 de Protección de Datos Personales</p>
+      ${cuerpo}
+      <p style="margin:16px 0 0;line-height:1.55;font-size:13px;color:#374151">
+        Ante cualquier duda o problema para ingresar, escríbeme directamente a
+        <a href="mailto:${CONTACTO}" style="color:#2563eb;font-weight:600">${CONTACTO}</a>.
+        Este correo es automático y no recibe respuestas.
+      </p>
+    </div>
+    <p style="text-align:center;margin:14px 0 0;font-size:12px;color:#9ca3af">Procesos360 SpA · Diagnóstico LPDP</p>
+  </div></body></html>`;
+}
+
+/** Invitación a activar la cuenta: la persona define su propia contraseña. */
+export function plantillaActivacion(nombre: string, enlace: string, dominios: string[]) {
+  const primerNombre = nombre.split(" ")[0];
+  const subject = "Activa tu cuenta — Diagnóstico LPDP";
+
+  const html = envoltorio(`
+      <h1 style="margin:0 0 12px;font-size:20px;color:#111827">Hola ${primerNombre},</h1>
+      <p style="margin:0 0 12px;line-height:1.6">Tu empresa está realizando su <strong>diagnóstico de cumplimiento de la Ley de Protección de Datos Personales</strong> junto a Procesos360, y te hemos habilitado una cuenta para participar.</p>
+      ${listaDominiosHtml(dominios)}
+      <p style="margin:16px 0 12px;line-height:1.6">Para empezar, activa tu cuenta y <strong>define tu propia contraseña</strong>:</p>
+      <div style="text-align:center;margin:22px 0">
+        <a href="${enlace}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:13px 30px;border-radius:8px;font-weight:600">Activar mi cuenta</a>
+      </div>
+      <p style="margin:0 0 12px;line-height:1.55;font-size:13px;color:#6b7280">
+        El enlace sirve una sola vez y vence en ${DIAS_VIGENCIA_ENLACE} días. Si el botón no funciona,
+        copia esta dirección en tu navegador:<br>
+        <span style="word-break:break-all;color:#374151">${enlace}</span>
+      </p>
+      <p style="margin:14px 0 0;line-height:1.6;font-size:14px;color:#374151">
+        Al entrar por primera vez se te pedirá aceptar el <strong>consentimiento informado</strong>.
+      </p>`);
+
+  const text = `Hola ${primerNombre},
+
+Tu empresa está realizando su diagnóstico de cumplimiento de la Ley de Protección de Datos Personales junto a Procesos360, y te hemos habilitado una cuenta para participar.
+${dominios.length ? `\nVas a responder:\n${dominios.map((d) => `  - ${d}`).join("\n")}\n` : ""}
+Para empezar, activa tu cuenta y define tu propia contraseña en este enlace:
+
+${enlace}
+
+El enlace sirve una sola vez y vence en ${DIAS_VIGENCIA_ENLACE} días.
+Al entrar por primera vez se te pedirá aceptar el consentimiento informado.
+
+Ante cualquier duda o problema, escríbeme directamente a ${CONTACTO}.
+Este correo es automático y no recibe respuestas.
+
+Procesos360 · Diagnóstico LPDP`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Credenciales escritas. `nueva` distingue el primer envío de un reemplazo: si es un
+ * reemplazo hay que decirlo, porque la clave anterior deja de servir en ese momento y
+ * quien la tenía anotada necesita saber por qué dejó de entrar.
+ */
+export function plantillaCredenciales(
+  nombre: string,
+  email: string,
+  password: string,
+  dominios: string[],
+  nueva = false
+) {
+  const primerNombre = nombre.split(" ")[0];
+  const subject = nueva
+    ? "Tu nueva contraseña — Diagnóstico LPDP"
+    : "Acceso a la plataforma de diagnóstico LPDP";
+
+  const apertura = nueva
+    ? `<p style="margin:0 0 12px;line-height:1.6">Te generamos una <strong>contraseña nueva</strong> para la plataforma del diagnóstico LPDP. La anterior, si la tenías, ya no sirve.</p>`
+    : `<p style="margin:0 0 12px;line-height:1.6">Te damos acceso a la plataforma con la que tu empresa está realizando su <strong>diagnóstico de cumplimiento de la Ley de Protección de Datos Personales (LPDP)</strong>. Desde ahí responderás las preguntas de los dominios a tu cargo y adjuntarás la evidencia correspondiente.</p>`;
+
+  const html = envoltorio(`
+      <h1 style="margin:0 0 12px;font-size:20px;color:#111827">Hola ${primerNombre},</h1>
+      ${apertura}
+      ${listaDominiosHtml(dominios)}
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:18px 0">
+        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em">Tus credenciales</p>
+        <p style="margin:0 0 4px"><strong>Usuario:</strong> ${email}</p>
+        <p style="margin:0"><strong>Contraseña:</strong> <span style="font-family:monospace;font-size:15px">${password}</span></p>
+      </div>
+      <div style="text-align:center;margin:22px 0">
+        <a href="${APP_URL}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600">Ingresar a la plataforma</a>
+      </div>
+      <p style="margin:0 0 12px;line-height:1.55;font-size:14px;color:#374151">Al ingresar por primera vez se te pedirá <strong>aceptar el consentimiento informado</strong> antes de comenzar. La dirección es <a href="${APP_URL}" style="color:#2563eb">${APP_URL.replace("https://", "")}</a>.</p>`);
+
+  const text = `Hola ${primerNombre},
+
+${
+  nueva
+    ? "Te generamos una contraseña nueva para la plataforma del diagnóstico LPDP. La anterior, si la tenías, ya no sirve."
+    : "Te damos acceso a la plataforma del diagnóstico de la Ley de Protección de Datos Personales (LPDP) de tu empresa."
+}
+${dominios.length ? `\nDominios asignados:\n${dominios.map((d) => `  - ${d}`).join("\n")}\n` : ""}
+Tus credenciales:
+  Usuario: ${email}
+  Contraseña: ${password}
+
+Ingresa en: ${APP_URL}
+Al entrar por primera vez se te pedirá aceptar el consentimiento informado.
+
+Ante cualquier duda o problema para ingresar, escríbeme directamente a ${CONTACTO}.
+Este correo es automático y no recibe respuestas.
+
+Procesos360 · Diagnóstico LPDP`;
+
+  return { subject, html, text };
+}

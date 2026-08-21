@@ -24,18 +24,17 @@ for (const line of readFileSync(join(__dirname, "..", ".env"), "utf-8").split("\
 }
 process.env.DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
 import { PrismaClient } from "@prisma/client";
+import { plantillaActivacion, DIAS_VIGENCIA_ENLACE } from "../src/lib/email";
 
 const prisma = new PrismaClient();
 const APP_URL = "https://lpdp.procesos360.cl";
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const EMAIL_FROM = process.env.EMAIL_FROM!;
-const CONTACTO = "francisco.guajardo@procesos360.cl";
-const DIAS_VIGENCIA = 7;
 
 /** Genera y guarda un token de un solo uso. Reemplaza cualquier anterior. */
 async function nuevoEnlace(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
-  const expira = new Date(Date.now() + DIAS_VIGENCIA * 24 * 60 * 60 * 1000);
+  const expira = new Date(Date.now() + DIAS_VIGENCIA_ENLACE * 24 * 60 * 60 * 1000);
   await prisma.user.update({
     where: { id: userId },
     data: { tokenActivacion: token, tokenExpira: expira },
@@ -43,67 +42,8 @@ async function nuevoEnlace(userId: string): Promise<string> {
   return `${APP_URL}/activar?token=${token}`;
 }
 
-function plantilla(nombre: string, enlace: string, dominios: string[]) {
-  const primerNombre = nombre.split(" ")[0];
-  const subject = "Activa tu cuenta — Diagnóstico LPDP Honda";
-
-  const lista = dominios.length
-    ? `<p style="margin:16px 0 6px;line-height:1.6">Vas a responder ${
-        dominios.length === 1 ? "el siguiente dominio" : "los siguientes dominios"
-      }:</p>
-       <ul style="margin:0 0 8px;padding-left:20px;line-height:1.6;color:#111827">${dominios
-         .map((d) => `<li style="margin:2px 0">${d}</li>`)
-         .join("")}</ul>`
-    : "";
-
-  const html = `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2937">
-  <div style="max-width:560px;margin:0 auto;padding:24px">
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:28px">
-      <p style="margin:0 0 4px;font-size:13px;color:#6b7280">Procesos360 · Ley 21.719 de Protección de Datos Personales</p>
-      <h1 style="margin:0 0 12px;font-size:20px;color:#111827">Hola ${primerNombre},</h1>
-      <p style="margin:0 0 12px;line-height:1.6">Honda está realizando su <strong>diagnóstico de cumplimiento de la Ley de Protección de Datos Personales</strong> junto a Procesos360, y te hemos habilitado una cuenta para participar.</p>
-      ${lista}
-      <p style="margin:16px 0 12px;line-height:1.6">Para empezar, activa tu cuenta y <strong>define tu propia contraseña</strong>:</p>
-
-      <div style="text-align:center;margin:22px 0">
-        <a href="${enlace}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:13px 30px;border-radius:8px;font-weight:600">Activar mi cuenta</a>
-      </div>
-
-      <p style="margin:0 0 12px;line-height:1.55;font-size:13px;color:#6b7280">
-        El enlace sirve una sola vez y vence en ${DIAS_VIGENCIA} días. Si el botón no funciona,
-        copia esta dirección en tu navegador:<br>
-        <span style="word-break:break-all;color:#374151">${enlace}</span>
-      </p>
-      <p style="margin:14px 0 0;line-height:1.6;font-size:14px;color:#374151">
-        Al entrar por primera vez se te pedirá aceptar el <strong>consentimiento informado</strong>.
-      </p>
-      <p style="margin:14px 0 0;line-height:1.55;font-size:13px;color:#374151">
-        Ante cualquier duda o problema, escríbeme directamente a
-        <a href="mailto:${CONTACTO}" style="color:#2563eb;font-weight:600">${CONTACTO}</a>.
-        Este correo es automático y no recibe respuestas.
-      </p>
-    </div>
-    <p style="text-align:center;margin:14px 0 0;font-size:12px;color:#9ca3af">Procesos360 SpA · Diagnóstico LPDP Honda</p>
-  </div></body></html>`;
-
-  const text = `Hola ${primerNombre},
-
-Honda está realizando su diagnóstico de cumplimiento de la Ley de Protección de Datos Personales junto a Procesos360, y te hemos habilitado una cuenta para participar.
-${dominios.length ? `\nVas a responder:\n${dominios.map((d) => `  - ${d}`).join("\n")}\n` : ""}
-Para empezar, activa tu cuenta y define tu propia contraseña en este enlace:
-
-${enlace}
-
-El enlace sirve una sola vez y vence en ${DIAS_VIGENCIA} días.
-Al entrar por primera vez se te pedirá aceptar el consentimiento informado.
-
-Ante cualquier duda o problema, escríbeme directamente a ${CONTACTO}.
-Este correo es automático y no recibe respuestas.
-
-Procesos360 · Diagnóstico LPDP Honda`;
-
-  return { subject, html, text };
-}
+// La plantilla vive en src/lib/email.ts: la comparten esta linea de comandos y la
+// seccion de accesos de la plataforma, y tienen que decir exactamente lo mismo.
 
 async function enviarResend(to: string, subject: string, html: string, text: string) {
   const res = await fetch("https://api.resend.com/emails", {
@@ -168,7 +108,7 @@ async function main() {
       continue;
     }
 
-    const { subject, html, text } = plantilla(u.nombre, enlace, await dominiosDe(u.id));
+    const { subject, html, text } = plantillaActivacion(u.nombre, enlace, await dominiosDe(u.id));
     const to = testTo ?? u.email;
     try {
       const id = await enviarResend(to, testTo ? `[PRUEBA] ${subject}` : subject, html, text);

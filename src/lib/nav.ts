@@ -41,6 +41,13 @@ export const NAV_ITEMS: NavItem[] = [
     tour: "nav-empresas",
   },
   {
+    href: "/admin/accesos",
+    label: "Accesos",
+    icon: "users",
+    roles: [ROLES.ADMIN_P360],
+    tour: "nav-accesos",
+  },
+  {
     href: "/admin/catalogo",
     label: "Catálogo LPDP",
     icon: "book",
