@@ -86,6 +86,12 @@ model User {
   // Última vez que se le envió un recordatorio, para no insistirle de más.
   ultimoRecordatorio DateTime?
 
+  // La contraparte del cliente que lleva el control interno del levantamiento: ve el
+  // seguimiento de SU empresa y puede recordarle a sus colegas, sin dejar de ser un
+  // participante más que responde sus propios dominios. Es un permiso puntual y no un
+  // rol nuevo porque no cambia nada más de lo que esa persona puede hacer.
+  coordinaSeguimiento Boolean @default(false)
+
   diagnosticosConsultor Diagnostico[]        @relation("consultor")
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, puedeVerSeguimiento } from "@/lib/session";
 import { pendientesDelDiagnostico } from "@/lib/data/pendientes";
 import { enviarCorreo, plantillaRecordatorio, correoConfigurado } from "@/lib/email";
 
@@ -21,9 +21,16 @@ export async function enviarRecordatorios(
   diagnosticoId: string,
   userIds?: string[]
 ): Promise<EnvioRecordatorio> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede enviar recordatorios." };
+  await requireSession();
+
+  // El permiso se comprueba contra ESTE diagnóstico, no contra el rol a secas: quien
+  // coordina en un cliente no tiene por qué poder escribirle a los de otro.
+  const diag = await prisma.diagnostico.findUnique({
+    where: { id: diagnosticoId },
+    select: { empresaId: true },
+  });
+  if (!diag || !(await puedeVerSeguimiento(diag.empresaId))) {
+    return { ok: false, error: "No tienes permiso para enviar recordatorios de este diagnóstico." };
   }
   if (!correoConfigurado()) {
     return { ok: false, error: "El envío de correo no está configurado en el servidor." };

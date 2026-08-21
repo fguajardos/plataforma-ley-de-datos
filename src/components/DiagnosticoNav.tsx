@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ROLES } from "@/lib/constants";
-import { getSession, esStaffP360 } from "@/lib/session";
+import { getSession, esStaffP360, coordinaSeguimiento } from "@/lib/session";
 
 // Sub-navegación horizontal para las secciones de un diagnóstico.
 // El viaje del Documento Funcional Base: resumen → config → cuestionario → motores → reportes.
@@ -10,12 +10,12 @@ import { getSession, esStaffP360 } from "@/lib/session";
 // esta barra, y basta que una olvide pasarlo para que aparezca una pestaña que quien
 // mira no debería ver.
 
-const TABS: { key: string; suffix: string; label: string; soloP360?: boolean }[] = [
+const TABS: { key: string; suffix: string; label: string; control?: boolean }[] = [
   { key: "resumen", suffix: "", label: "Resumen" },
   { key: "configurar", suffix: "/configurar", label: "Configurar" },
-  // Seguimiento expone el detalle de quién va atrasado y permite escribirles: es una
-  // herramienta de gestión del equipo consultor, no algo que la contraparte deba ver.
-  { key: "seguimiento", suffix: "/seguimiento", label: "Seguimiento", soloP360: true },
+  // Seguimiento expone el detalle de quién va atrasado y permite escribirles: la ven el
+  // equipo consultor y la contraparte que coordina el levantamiento dentro del cliente.
+  { key: "seguimiento", suffix: "/seguimiento", label: "Seguimiento", control: true },
   { key: "madurez", suffix: "/madurez", label: "Madurez" },
   { key: "brechas", suffix: "/brechas", label: "Brechas" },
   { key: "riesgos", suffix: "/riesgos", label: "Riesgos" },
@@ -31,11 +31,19 @@ export async function DiagnosticoNav({ id, active }: { id: string; active: strin
   const session = await getSession();
   const role = session?.user?.role;
   if (!role) return null;
-  // El Responsable de Dominio solo responde su cuestionario: no ve las pestañas de gestión.
-  if (role === ROLES.RESPONSABLE_DOMINIO) return null;
 
   const staff = esStaffP360(role);
-  const tabs = TABS.filter((t) => !t.soloP360 || staff);
+  const coordina = !staff && (await coordinaSeguimiento());
+  // El Responsable de Dominio solo responde su cuestionario: no ve las pestañas de gestión.
+  if (role === ROLES.RESPONSABLE_DOMINIO && !coordina) return null;
+
+  const tabs = TABS.filter((t) => {
+    if (t.control) return staff || coordina;
+    // Coordinar el levantamiento no es gestionarlo: quien lleva el control desde el
+    // cliente suma la pestaña de seguimiento a lo que ya veía, y nada más.
+    if (role === ROLES.RESPONSABLE_DOMINIO) return t.key === "resumen";
+    return true;
+  });
 
   return (
     <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 pb-px print:hidden">

@@ -79,3 +79,35 @@ export function sinAccesoAEmpresa(
   if (session.user.empresaId) return empresaIdRecurso !== session.user.empresaId;
   return !esStaffP360(session.user.role);
 }
+
+/**
+ * ¿Esta persona lleva el control interno del levantamiento por parte del cliente?
+ *
+ * Se lee de la base y no del token de sesión a propósito: es un permiso que se otorga y
+ * se quita en caliente, y si viviera en el JWT habría que pedirle a quien lo recibe que
+ * cierre sesión y vuelva a entrar para que le tomara efecto.
+ */
+export const coordinaSeguimiento = cache(async (): Promise<boolean> => {
+  const session = await getSession();
+  if (!session?.user?.id) return false;
+  const u = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { coordinaSeguimiento: true },
+  });
+  return u?.coordinaSeguimiento ?? false;
+});
+
+/**
+ * ¿Puede ver el seguimiento de este diagnóstico (y por lo tanto recordarle a quien va
+ * atrasado)? Lo pueden el equipo consultor y la contraparte que coordina en el cliente,
+ * y en ambos casos solo dentro de la empresa que les corresponde.
+ */
+export async function puedeVerSeguimiento(
+  empresaIdDiagnostico: string | null | undefined
+): Promise<boolean> {
+  const session = await getSession();
+  if (!session?.user) return false;
+  if (sinAccesoAEmpresa(session, empresaIdDiagnostico)) return false;
+  if (esStaffP360(session.user.role)) return true;
+  return coordinaSeguimiento();
+}

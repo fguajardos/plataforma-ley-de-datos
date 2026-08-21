@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { requireSession, getCurrentUser, esStaffP360, empresaScope } from "@/lib/session";
+import {
+  requireSession,
+  getCurrentUser,
+  esStaffP360,
+  empresaScope,
+  coordinaSeguimiento,
+} from "@/lib/session";
 import {
   ROLE_LABELS,
   NIVEL_MADUREZ,
@@ -40,11 +46,7 @@ export default async function DashboardPage() {
       ) : session.user.role === ROLES.ALTA_DIRECCION ? (
         <DashboardDireccion empresaId={session.user.empresaId} />
       ) : (
-        <DashboardEmpresa
-          empresaId={session.user.empresaId}
-          userId={session.user.id}
-          role={session.user.role}
-        />
+        <DashboardEmpresa session={session} />
       )}
     </>
   );
@@ -257,17 +259,14 @@ async function DashboardDireccion({ empresaId }: { empresaId: string | null }) {
 // del §16.3): el Responsable de Dominio ve lo suyo; el Admin de Empresa, que no participa
 // de dominios puntuales, ve el diagnóstico completo.
 
-async function DashboardEmpresa({
-  empresaId,
-  userId,
-  role,
-}: {
-  empresaId: string | null;
-  userId: string;
-  role: Role;
-}) {
+async function DashboardEmpresa({ session }: { session: SessionLike }) {
+  const { empresaId, id: userId, role } = session.user;
   const diag = await diagnosticoVigente(empresaId);
   if (!diag) return <Vacio />;
+
+  // La contraparte que lleva el control interno ve, además de su propia tarea, en qué
+  // van sus colegas. Es el mismo panel del consultor, acotado a su empresa.
+  const coordina = await coordinaSeguimiento();
 
   // Dominios en los que este usuario participa (guía directa de su tarea).
   const misDominios = await prisma.diagnosticoDominio.findMany({
@@ -406,6 +405,8 @@ async function DashboardEmpresa({
         />
         <Kpi label="Acciones correctivas" valor={accionesAbiertas} />
       </div>
+
+      {coordina && <SeguimientoResumen session={session} />}
 
       {/* "Estado del proceso" es seguimiento del diagnóstico completo (§16.3): le sirve al
           Admin de Empresa, no al Responsable de Dominio, que solo responde lo suyo (§3.4). */}

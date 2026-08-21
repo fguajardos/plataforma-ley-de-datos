@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, puedeVerSeguimiento } from "@/lib/session";
 import { pendientesDelDiagnostico, queFalta } from "@/lib/data/pendientes";
 import { avanceDelDiagnostico } from "@/lib/data/avance";
 import { PageHeader } from "@/components/PageHeader";
@@ -26,14 +26,14 @@ export default async function SeguimientoPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) notFound();
+  await requireSession();
 
   const diag = await prisma.diagnostico.findUnique({
     where: { id },
-    select: { id: true, nombre: true },
+    select: { id: true, nombre: true, empresaId: true },
   });
   if (!diag) notFound();
+  if (!(await puedeVerSeguimiento(diag.empresaId))) notFound();
 
   const avance = await avanceDelDiagnostico(id);
   const participantes = await pendientesDelDiagnostico(id);
