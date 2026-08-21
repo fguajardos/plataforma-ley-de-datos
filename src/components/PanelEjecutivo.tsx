@@ -7,8 +7,11 @@ import type { PanelEjecutivo as Datos, EstadoDominio, FilaPanel } from "@/lib/da
 //      se queda con el más halagador.
 //   2. El semáforo por dominio, coloreado por completitud del levantamiento y no por
 //      avance: un dominio contestado por una sola persona de cinco no está verde.
-//   3. Lo que requiere una decisión, con nombre y apellido. Un informe a gerencia que no
-//      termina en peticiones concretas no sirve para nada.
+//   3. Lo que requiere atención, con nombre y apellido. Un informe a gerencia que no
+//      termina en peticiones concretas no sirve para nada. El rótulo es "atención" y no
+//      "decisión" porque la lista mezcla las dos cosas: hay pendientes que solo hay que
+//      empujar y hay disyuntivas reales. Prometer una elección y entregar una tarea le
+//      quita fuerza al bloque; la palabra "decisión" se reserva para el ítem que sí lo es.
 //
 // La madurez aparece solo donde el levantamiento está completo. Publicarla antes es
 // mostrar un número que se va a mover, y cuando se mueva el informe pierde autoridad.
@@ -121,7 +124,7 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
           />
           <Dato
             valor={altas}
-            label="Requieren su decisión"
+            label="Requieren atención"
             alerta={altas > 0}
           />
         </div>
@@ -172,11 +175,11 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
         </div>
       </div>
 
-      {/* ───────────────── 3 · Lo que requiere decisión ───────────────── */}
+      {/* ───────────────── 3 · Lo que requiere atención ───────────────── */}
       {datos.peticiones.length > 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Requiere una decisión
+            Requiere atención
           </p>
           <ul className="mt-3 space-y-3">
             {datos.peticiones.map((p, i) => (
