@@ -27,9 +27,45 @@ export async function generarBrechasAction(diagnosticoId: string): Promise<Gener
     where: { diagnosticoId, incluido: true },
     include: {
       dominio: { select: { orden: true, nombre: true } },
-      respuestas: { include: { pregunta: true, evidencias: { select: { id: true } } } },
+      participantes: { select: { userId: true, user: { select: { nombre: true } } } },
+      respuestas: {
+        include: {
+          pregunta: true,
+          evidencias: { select: { id: true } },
+          aportes: { select: { userId: true } },
+        },
+      },
     },
   });
+
+  // Las brechas son el resultado del diagnóstico, no un avance de él: se calculan sobre
+  // la respuesta consolidada, y esa respuesta no está completa mientras falte gente por
+  // opinar. Generarlas antes produce un informe que cambia solo, y de esos números
+  // cuelgan después los riesgos, el plan y lo que el cliente firma.
+  const faltan = dds.flatMap((dd) =>
+    dd.participantes
+      .map((p) => ({
+        dominio: dd.dominio.orden,
+        nombre: p.user.nombre,
+        pendientes: dd.respuestas.filter(
+          (r) => !r.aportes.some((a) => a.userId === p.userId)
+        ).length,
+      }))
+      .filter((x) => x.pendientes > 0)
+  );
+  if (faltan.length > 0) {
+    const detalle = faltan
+      .slice(0, 6)
+      .map((f) => `${f.nombre} (dominio ${f.dominio}, ${f.pendientes})`)
+      .join("; ");
+    return {
+      ok: false,
+      error:
+        `Todavía falta gente por responder, así que las brechas cambiarían: ${detalle}` +
+        (faltan.length > 6 ? ` y ${faltan.length - 6} más.` : ".") +
+        " Cierra el levantamiento antes de generarlas.",
+    };
+  }
 
   const inputs: RespuestaBrechaInput[] = dds.flatMap((dd) =>
     dd.respuestas
