@@ -16,6 +16,7 @@ const TABS: { key: string; suffix: string; label: string; control?: boolean }[] 
   // Seguimiento expone el detalle de quién va atrasado y permite escribirles: la ven el
   // equipo consultor y la contraparte que coordina el levantamiento dentro del cliente.
   { key: "seguimiento", suffix: "/seguimiento", label: "Seguimiento", control: true },
+  { key: "documentos", suffix: "/documentos", label: "Documentos" },
   { key: "madurez", suffix: "/madurez", label: "Madurez" },
   { key: "brechas", suffix: "/brechas", label: "Brechas" },
   { key: "riesgos", suffix: "/riesgos", label: "Riesgos" },

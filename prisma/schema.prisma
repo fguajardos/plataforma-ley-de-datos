@@ -288,6 +288,10 @@ model Evidencia {
   mimeType             String?
   tamano               Int?
   version              String?             @default("1.0")
+  // Cuál de las evidencias mínimas del dominio queda cubierta con este documento.
+  // Hoy lo marca el consultor a mano; es el campo que más adelante va a proponer el
+  // análisis automático del documento, para que él solo confirme o corrija.
+  cubreEvidencia       String?
   estado               String              @default("PENDIENTE") // PENDIENTE, EN_REVISION, VALIDADA, OBSERVADA, RECHAZADA, VENCIDA
   vigencia             DateTime?
   observaciones        String?
