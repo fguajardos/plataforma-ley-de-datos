@@ -72,22 +72,10 @@ export function AvanceDiagnostico({ datos }: { datos: Datos }) {
                   </span>
                 )}
               </div>
-              {/* Dos lecturas distintas, y la segunda faltaba: un dominio puede marcar
-                  5/5 porque una sola persona lo contestó entero. La barra mide cuánto se
-                  respondió; el contador de personas, cuántas miradas hay detrás. */}
+              {/* Solo preguntas. Cuántas personas respondieron cada dominio se cuenta
+                  aparte, en su propio gráfico: mezclar las dos lecturas en la misma fila
+                  obligaba a adivinar cuál de los dos pares de números era cuál. */}
               <span className="shrink-0 text-xs tabular-nums text-slate-500">
-                {d.participantes > 0 && (
-                  <span
-                    className={
-                      d.participantesActivos < d.participantes
-                        ? "mr-2 font-medium text-orange-600"
-                        : "mr-2 text-slate-400"
-                    }
-                    title={`${d.participantesActivos} de ${d.participantes} participantes han registrado su respuesta`}
-                  >
-                    {d.participantesActivos}/{d.participantes} pers.
-                  </span>
-                )}
                 {d.completas}/{d.total}
               </span>
               <div className="col-span-2 ml-7 h-2 overflow-hidden rounded-full bg-slate-100">

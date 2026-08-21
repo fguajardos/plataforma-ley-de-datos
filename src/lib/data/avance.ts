@@ -13,6 +13,14 @@ import { respuestaCompleta, valorNumerico, clasificarMadurez, type NivelMadurez 
 
 const CERRADOS = ["EN_VALIDACION", "COMPLETADO"];
 
+/** Una persona asignada al dominio y si ya dejó su mirada registrada. */
+export type PersonaDominio = {
+  nombre: string;
+  cargo: string | null;
+  respondio: boolean;
+  registradas: number;
+};
+
 export type AvanceDominio = {
   orden: number;
   nombre: string;
@@ -30,6 +38,7 @@ export type AvanceDominio = {
   // levantamiento pierde justamente las miradas que no quedaron registradas.
   participantes: number;
   participantesActivos: number;
+  personas: PersonaDominio[];
 };
 
 export type AvanceDiagnostico = {
@@ -63,7 +72,10 @@ export async function avanceDelDiagnostico(diagnosticoId: string): Promise<Avanc
         select: {
           estado: true,
           dominio: { select: { orden: true, nombre: true } },
-          participantes: { select: { userId: true } },
+          participantes: {
+            select: { userId: true, user: { select: { nombre: true, cargo: true } } },
+            orderBy: { user: { nombre: "asc" } },
+          },
           respuestas: {
             select: {
               valor: true,
@@ -114,20 +126,30 @@ export async function avanceDelDiagnostico(diagnosticoId: string): Promise<Avanc
         ? null
         : Math.round((puntuables.reduce((a, b) => a + b, 0) / puntuables.length) * 100) / 100;
 
-    const aportaronAqui = new Set<string>();
+    // Cuántas respuestas registró cada persona EN ESTE dominio.
+    const registradasPor = new Map<string, number>();
     for (const r of dd.respuestas) {
-      for (const a of r.aportes) aportaronAqui.add(a.userId);
+      for (const a of r.aportes) {
+        registradasPor.set(a.userId, (registradasPor.get(a.userId) ?? 0) + 1);
+      }
     }
+    const personasDominio: PersonaDominio[] = dd.participantes.map((x) => ({
+      nombre: x.user.nombre,
+      cargo: x.user.cargo,
+      respondio: (registradasPor.get(x.userId) ?? 0) > 0,
+      registradas: registradasPor.get(x.userId) ?? 0,
+    }));
 
     dominios.push({
       orden: dd.dominio.orden,
       nombre: dd.dominio.nombre,
       total: t,
       completas: c,
-      participantes: dd.participantes.length,
+      participantes: personasDominio.length,
       // Solo cuenta quien figura como participante: el consultor también puede escribir
       // la respuesta oficial, y eso no es la mirada de un área del cliente.
-      participantesActivos: dd.participantes.filter((x) => aportaronAqui.has(x.userId)).length,
+      participantesActivos: personasDominio.filter((x) => x.respondio).length,
+      personas: personasDominio,
       porcentaje: pct(c, t),
       estado: dd.estado,
       cerrado: CERRADOS.includes(dd.estado),

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { BotonRecordatorio } from "@/components/BotonRecordatorio";
 import { AvanceDiagnostico } from "@/components/AvanceDiagnostico";
+import { PersonasPorDominio } from "@/components/PersonasPorDominio";
 import { CoberturaDocumental } from "@/components/CoberturaDocumental";
 
 export const metadata = { title: "Seguimiento · Procesos360" };
@@ -82,7 +83,8 @@ export default async function SeguimientoPage({
       <DiagnosticoNav id={id} active="seguimiento" />
 
       {avance && (
-        <div className="mb-6">
+        <div className="mb-6 space-y-6">
+          <PersonasPorDominio datos={avance} />
           <AvanceDiagnostico datos={avance} />
         </div>
       )}
