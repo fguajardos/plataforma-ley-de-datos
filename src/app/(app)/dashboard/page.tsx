@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession, getCurrentUser, esStaffP360 } from "@/lib/session";
+import { requireSession, getCurrentUser, esStaffP360, empresaScope } from "@/lib/session";
 import {
   ROLE_LABELS,
   NIVEL_MADUREZ,
@@ -73,7 +73,7 @@ async function DashboardP360({ session }: { session: SessionLike }) {
         <Kpi label="Acciones vencidas" valor={accionesVencidas} color={accionesVencidas ? "#dc2626" : undefined} />
       </div>
 
-      <SeguimientoResumen />
+      <SeguimientoResumen session={session} />
 
       <Card>
         <CardHeader>
@@ -107,8 +107,10 @@ async function DashboardP360({ session }: { session: SessionLike }) {
  * porque es lo primero que el consultor necesita decidir cada mañana: a quién apurar.
  * El detalle por empresa vive en la pestaña Seguimiento de cada diagnóstico.
  */
-async function SeguimientoResumen() {
-  const pendientes = await pendientesGlobales();
+async function SeguimientoResumen({ session }: { session: SessionLike }) {
+  // Mismo alcance que el resto de la portada: quien está acotado a una empresa (por
+  // ejemplo la cuenta de demostración) ve solo la suya, y el staff no ve la demo.
+  const pendientes = await pendientesGlobales(empresaScope(session));
   if (pendientes.length === 0) return null;
 
   const sinEntrar = pendientes.filter((u) => !u.ultimaActividad).length;
@@ -145,6 +147,9 @@ async function SeguimientoResumen() {
                   <span className="text-sm font-medium text-slate-800">{u.nombre}</span>
                   {u.cargo && <span className="text-xs text-slate-400">{u.cargo}</span>}
                   {!u.ultimaActividad && <Badge color="orange">Nunca ha entrado</Badge>}
+                  {u.totalPreguntas === 0 && u.evidenciasPendientes > 0 && (
+                    <Badge color="yellow">Falta evidencia</Badge>
+                  )}
                 </div>
                 <p className="mt-0.5 text-xs text-slate-400">
                   {variosDiagnosticos && `${u.empresa} · `}
@@ -152,12 +157,17 @@ async function SeguimientoResumen() {
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                {u.totalPreguntas > 0 && (
+                {u.totalPreguntas > 0 ? (
                   <span className="text-sm font-semibold tabular-nums text-slate-700">
                     {u.totalPreguntas}
                     <span className="ml-1 text-xs font-normal text-slate-400">preg.</span>
                   </span>
-                )}
+                ) : u.evidenciasPendientes > 0 ? (
+                  <span className="text-sm font-semibold tabular-nums text-slate-700">
+                    {u.evidenciasPendientes}
+                    <span className="ml-1 text-xs font-normal text-slate-400">evid.</span>
+                  </span>
+                ) : null}
                 <BotonRecordatorio diagnosticoId={u.diagnosticoId} userId={u.userId} />
               </div>
             </li>

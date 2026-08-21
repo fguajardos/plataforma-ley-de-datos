@@ -41,6 +41,15 @@ export default async function SeguimientoPage({
   const alDia = participantes.filter((u) => u.alDia);
   const sinEntrar = participantes.filter((u) => !u.ultimaActividad);
   const preguntasPendientes = pendientes.reduce((n, u) => n + u.totalPreguntas, 0);
+  // Las evidencias se cuentan por dominio, no por persona: si dos participantes comparten
+  // un dominio, el documento que falta es el mismo y sumarlo dos veces engaña.
+  const evidenciasPorSubir = new Map<number, number>();
+  for (const u of pendientes) {
+    for (const d of u.dominios) {
+      if (d.sinEvidencia > 0) evidenciasPorSubir.set(d.orden, d.sinEvidencia);
+    }
+  }
+  const totalEvidencias = [...evidenciasPorSubir.values()].reduce((a, b) => a + b, 0);
 
   return (
     <>
@@ -56,9 +65,10 @@ export default async function SeguimientoPage({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Kpi label="Con pendientes" valor={pendientes.length} total={participantes.length} />
         <Kpi label="Preguntas por responder" valor={preguntasPendientes} />
+        <Kpi label="Evidencias por subir" valor={totalEvidencias} alerta={totalEvidencias > 0} />
         <Kpi label="Nunca han entrado" valor={sinEntrar.length} alerta={sinEntrar.length > 0} />
         <Kpi label="Al día" valor={alDia.length} bueno={alDia.length > 0} />
       </div>
@@ -85,6 +95,9 @@ export default async function SeguimientoPage({
                         <span className="font-medium text-slate-900">{u.nombre}</span>
                         {u.cargo && <span className="text-xs text-slate-400">{u.cargo}</span>}
                         {!u.ultimaActividad && <Badge color="orange">Nunca ha entrado</Badge>}
+                        {u.totalPreguntas === 0 && u.evidenciasPendientes > 0 && (
+                          <Badge color="yellow">Falta evidencia</Badge>
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-slate-400">
                         {u.email} · {u.aportes} respuestas registradas · última actividad:{" "}
@@ -105,12 +118,17 @@ export default async function SeguimientoPage({
                     </div>
 
                     <div className="shrink-0 text-right">
-                      {u.totalPreguntas > 0 && (
+                      {u.totalPreguntas > 0 ? (
                         <p className="mb-1 text-2xl font-bold tabular-nums text-slate-900">
                           {u.totalPreguntas}
                           <span className="ml-1 text-xs font-normal text-slate-400">preg.</span>
                         </p>
-                      )}
+                      ) : u.evidenciasPendientes > 0 ? (
+                        <p className="mb-1 text-2xl font-bold tabular-nums text-slate-900">
+                          {u.evidenciasPendientes}
+                          <span className="ml-1 text-xs font-normal text-slate-400">evid.</span>
+                        </p>
+                      ) : null}
                       <BotonRecordatorio diagnosticoId={id} userId={u.userId} />
                     </div>
                   </div>

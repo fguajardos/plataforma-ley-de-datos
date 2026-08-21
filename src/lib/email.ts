@@ -43,20 +43,26 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
   const porResponder = u.dominios.reduce((n, d) => n + d.sinResponder, 0);
   const sinMirada = u.dominios.reduce((n, d) => n + d.sinTuMirada, 0);
   const porEnviar = u.dominios.filter((d) => d.listoSinEnviar);
+  const evidencias = u.dominios.reduce((n, d) => n + d.sinEvidencia, 0);
+  const soloCuestionarioListo = porResponder === 0 && sinMirada === 0;
 
-  const subject =
-    porResponder === 0 && sinMirada === 0 && porEnviar.length > 0
-      ? `Diagnóstico LPDP — solo falta que envíes ${porEnviar.length === 1 ? "tu dominio" : `tus ${porEnviar.length} dominios`}`
-      : u.dominios.length === 1
-        ? `Diagnóstico LPDP — te queda pendiente el dominio de ${u.dominios[0].nombre}`
-        : `Diagnóstico LPDP — tienes ${u.dominios.length} dominios pendientes`;
+  const subject = !soloCuestionarioListo
+    ? u.dominios.length === 1
+      ? `Diagnóstico LPDP — te queda pendiente el dominio de ${u.dominios[0].nombre}`
+      : `Diagnóstico LPDP — tienes ${u.dominios.length} dominios pendientes`
+    : evidencias > 0
+      ? `Diagnóstico LPDP — falta adjuntar ${evidencias === 1 ? "1 documento" : `${evidencias} documentos`}`
+      : porEnviar.length > 0
+        ? `Diagnóstico LPDP — solo falta que envíes ${porEnviar.length === 1 ? "tu dominio" : `tus ${porEnviar.length} dominios`}`
+        : "Diagnóstico LPDP — te queda un paso pendiente";
 
-  const intro =
-    porResponder === 0 && sinMirada === 0
-      ? "Buenas noticias: ya está todo respondido. Solo queda un paso para que podamos revisarlo."
-      : `Para poder avanzar con el diagnóstico, esto es lo que queda pendiente en ${
-          u.dominios.length === 1 ? "el dominio" : "los dominios"
-        } a tu cargo:`;
+  const intro = soloCuestionarioListo
+    ? evidencias > 0
+      ? "Ya respondiste todas las preguntas. Lo único que falta es adjuntar los documentos que respaldan tus respuestas."
+      : "Buenas noticias: ya está todo respondido. Solo queda un paso para que podamos revisarlo."
+    : `Para poder avanzar con el diagnóstico, esto es lo que queda pendiente en ${
+        u.dominios.length === 1 ? "el dominio" : "los dominios"
+      } a tu cargo:`;
 
   const filas = u.dominios
     .map(
@@ -73,6 +79,13 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
       `Donde dice <em>“sin tu mirada”</em> ya respondió un colega. <strong>Registra igual la tuya</strong>,
        aunque no coincida: cada uno conoce una parte distinta de la operación y esas diferencias son
        justamente lo que necesitamos ver.`
+    );
+  }
+  if (evidencias > 0) {
+    notas.push(
+      `Marcaste que el control existe, así que necesitamos el documento que lo demuestra: se adjunta
+       en la misma pregunta, con <strong>“Subir evidencia”</strong>. Mientras falte, el dominio no se
+       puede enviar a validación aunque el cuestionario se vea completo.`
     );
   }
   if (porEnviar.length > 0) {
@@ -133,6 +146,7 @@ ${intro}
 
 ${u.dominios.map((d) => `  - ${d.orden}. ${d.nombre}: ${queFalta(d)}`).join("\n")}
 ${porResponder + sinMirada > 0 ? `\nSon ${porResponder + sinMirada} preguntas en total. Para cada una necesitamos la nota del 0 al 5, un comentario breve y, si existe, el documento que lo respalde.` : ""}
+${evidencias > 0 ? `\nFalta adjuntar ${evidencias === 1 ? "1 documento" : `${evidencias} documentos`}: se sube en la misma pregunta, con "Subir evidencia". Mientras falte, el dominio no se puede enviar a validación.` : ""}
 ${porEnviar.length > 0 ? `\n${porEnviar.length === 1 ? "Un dominio ya está completo" : `${porEnviar.length} dominios ya están completos`}: falta apretar "Enviar respuestas a validación" dentro del dominio.` : ""}
 
 Ingresa en: ${APP_URL}

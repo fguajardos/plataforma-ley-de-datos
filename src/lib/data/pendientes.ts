@@ -1,6 +1,7 @@
 // Sin "server-only": este modulo lo comparten la aplicacion y los scripts de
 // linea de comandos, y ese marcador solo resuelve dentro de Next. Igual queda del
 // lado del servidor por construccion, porque importa el cliente de base de datos.
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { respuestaCompleta } from "@/lib/constants";
 
@@ -16,6 +17,7 @@ export type PendienteDominio = {
   total: number;
   sinResponder: number; // nadie las ha respondido todavía
   sinTuMirada: number; // otro las respondió, esta persona aún no
+  sinEvidencia: number; // respondidas, pero falta subir el documento que las respalda
   listoSinEnviar: boolean; // completo, solo falta mandarlo a validación
 };
 
@@ -26,6 +28,7 @@ export type PendientesUsuario = {
   cargo: string | null;
   dominios: PendienteDominio[];
   totalPreguntas: number; // sinResponder + sinTuMirada, sumado
+  evidenciasPendientes: number; // preguntas ya respondidas a las que les falta el respaldo
   aportes: number; // cuánto ha respondido en total
   ultimaActividad: Date | null;
   ultimoRecordatorio: Date | null;
@@ -41,6 +44,7 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
       dominio: { select: { orden: true, nombre: true } },
       participantes: {
         select: {
+          responsableEvidencia: true,
           user: {
             select: {
               id: true, nombre: true, email: true, cargo: true, ultimoRecordatorio: true,
@@ -75,13 +79,26 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
       })
     ).length;
 
+    // Una respuesta 3/4/5 afirma que el control existe: mientras no esté cargado el
+    // documento que lo respalda, el dominio no se puede enviar aunque el cuestionario
+    // se vea contestado. Esa espera no la contaba nadie, y la persona aparecía "al día".
+    const faltaEvidencia = dd.respuestas.filter(
+      (r) =>
+        r.pregunta.evidenciaObligatoria &&
+        ["3", "4", "5"].includes(r.valor ?? "") &&
+        !r.evidencias.some((e) => e.archivoPath)
+    ).length;
+    // Si el dominio tiene responsables de evidencia designados, la carga es de ellos.
+    // Si no se designó a nadie, es de todos los que participan del dominio.
+    const hayDesignados = dd.participantes.some((p) => p.responsableEvidencia);
+
     for (const p of dd.participantes) {
       const u = p.user;
       let acc = porUsuario.get(u.id);
       if (!acc) {
         acc = {
           userId: u.id, nombre: u.nombre, email: u.email, cargo: u.cargo,
-          dominios: [], totalPreguntas: 0, aportes: 0,
+          dominios: [], totalPreguntas: 0, evidenciasPendientes: 0, aportes: 0,
           ultimaActividad: null, ultimoRecordatorio: u.ultimoRecordatorio, alDia: true,
         };
         porUsuario.set(u.id, acc);
@@ -102,14 +119,18 @@ export async function pendientesDelDiagnostico(diagnosticoId: string): Promise<P
       const sinTuMirada = dd.respuestas.filter(
         (r) => r.valor != null && !r.aportes.some((a) => a.userId === u.id)
       ).length;
+      const sinEvidencia = !hayDesignados || p.responsableEvidencia ? faltaEvidencia : 0;
       const listoSinEnviar = total > 0 && completas === total;
-      if (sinResponder === 0 && sinTuMirada === 0 && !listoSinEnviar) continue;
+      if (sinResponder === 0 && sinTuMirada === 0 && sinEvidencia === 0 && !listoSinEnviar) continue;
 
       acc.dominios.push({
         orden: dd.dominio.orden, nombre: dd.dominio.nombre, total,
-        sinResponder, sinTuMirada, listoSinEnviar,
+        sinResponder, sinTuMirada, sinEvidencia, listoSinEnviar,
       });
+      // La evidencia no suma al contador de preguntas: son dos deudas distintas, y
+      // mezclarlas infla el número que se le muestra a la persona en el recordatorio.
       acc.totalPreguntas += sinResponder + sinTuMirada;
+      acc.evidenciasPendientes += sinEvidencia;
       acc.alDia = false;
     }
   }
@@ -135,10 +156,17 @@ export type PendientesGlobal = PendientesUsuario & {
  * El consultor lleva varias empresas a la vez: lo que necesita al abrir la plataforma
  * no es el detalle de un cliente, sino a quién hay que perseguir hoy, sea de quien sea.
  * Los diagnósticos cerrados quedan fuera porque ya no hay nada que pedir.
+ *
+ * `scopeEmpresa` es obligatorio y viene de `empresaScope(session)`: sin él se colaban
+ * los participantes ficticios del entorno de demostración, y la portada contaba gente
+ * que no existe. Se pide por parámetro y no se resuelve aquí porque este módulo también
+ * lo usan los scripts de línea de comandos, donde no hay sesión.
  */
-export async function pendientesGlobales(): Promise<PendientesGlobal[]> {
+export async function pendientesGlobales(
+  scopeEmpresa: Prisma.DiagnosticoWhereInput
+): Promise<PendientesGlobal[]> {
   const diagnosticos = await prisma.diagnostico.findMany({
-    where: { estado: { not: "CERRADO" } },
+    where: { ...scopeEmpresa, estado: { not: "CERRADO" } },
     select: { id: true, nombre: true, empresa: { select: { razonSocial: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -179,6 +207,10 @@ export function queFalta(d: PendienteDominio): string {
   const partes: string[] = [];
   if (d.sinResponder > 0) partes.push(`${d.sinResponder} por responder`);
   if (d.sinTuMirada > 0) partes.push(`${d.sinTuMirada} sin tu mirada`);
+  if (d.sinEvidencia > 0)
+    partes.push(
+      d.sinEvidencia === 1 ? "falta subir 1 evidencia" : `faltan ${d.sinEvidencia} evidencias`
+    );
   if (d.listoSinEnviar) partes.push("falta enviarlo");
   return partes.join(" · ");
 }
