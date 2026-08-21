@@ -156,7 +156,14 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
 // ───────────────────────── Envío del dominio a validación ─────────────────────────
 
 export type Faltante = { orden: number; motivo: string };
-export type EnvioResult = { ok: boolean; error?: string; faltantes?: Faltante[] };
+export type Colega = { nombre: string; faltan: number; eresTu: boolean };
+export type EnvioResult = {
+  ok: boolean;
+  error?: string;
+  faltantes?: Faltante[];
+  /** Participantes del dominio que todavía no registran todas sus respuestas. */
+  colegas?: Colega[];
+};
 
 /**
  * Cierra el cuestionario del dominio y lo deja en manos del consultor.
@@ -171,10 +178,12 @@ export async function enviarDominio(diagnosticoDominioId: string): Promise<Envio
     include: {
       diagnostico: { select: { id: true, empresaId: true } },
       dominio: { select: { orden: true } },
+      participantes: { select: { userId: true, user: { select: { nombre: true } } } },
       respuestas: {
         include: {
           pregunta: { select: { orden: true, evidenciaObligatoria: true } },
           evidencias: { select: { id: true, archivoPath: true } },
+          aportes: { select: { userId: true, valor: true } },
         },
         orderBy: { pregunta: { orden: "asc" } },
       },
@@ -193,6 +202,28 @@ export async function enviarDominio(diagnosticoDominioId: string): Promise<Envio
   }
   if (["EN_VALIDACION", "COMPLETADO"].includes(dd.estado)) {
     return { ok: false, error: "Este dominio ya fue enviado a validación." };
+  }
+
+  // Enviar deja el dominio en solo lectura para TODOS sus participantes, no solo para
+  // quien aprieta el botón. Antes de permitírselo a un participante hay que verificar que
+  // sus colegas ya registraron lo suyo: el 21-08 el primero en terminar el RAT cerró el
+  // dominio mientras una compañera iba en la pregunta 5, y la dejó afuera sin aviso.
+  //
+  // El consultor sí puede cerrarlo con lo que haya: es su decisión de alcance, y de otro
+  // modo un participante mal asignado dejaría el dominio abierto para siempre.
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO) {
+    const colegas: Colega[] = dd.participantes
+      .map((p) => ({
+        nombre: p.user.nombre,
+        eresTu: p.userId === session.user.id,
+        faltan: dd.respuestas.filter(
+          (r) => !r.aportes.some((a) => a.userId === p.userId && a.valor != null)
+        ).length,
+      }))
+      .filter((c) => c.faltan > 0)
+      .sort((a, b) => b.faltan - a.faltan);
+
+    if (colegas.length > 0) return { ok: false, colegas };
   }
 
   const faltantes: Faltante[] = [];
