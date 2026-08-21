@@ -42,6 +42,25 @@ export async function requireAccesoSecciones(diagnosticoId: string) {
   return session;
 }
 
+/**
+ * Guard de las secciones transversales de la plataforma (catálogo LPDP y empresas).
+ *
+ * No basta el rol: el catálogo de dominios y preguntas es uno solo para todos los
+ * clientes, así que una cuenta de Procesos360 acotada a una empresa —la de
+ * demostración— no puede editarlo aunque sea administradora.
+ */
+export async function requireAdminGlobal() {
+  const session = await requireSession();
+  // El rol se lee de la base y no del token: al ascender a alguien, su sesión abierta
+  // sigue diciendo lo que decía al entrar, y tendría que cerrarla y volver para que le
+  // tomara efecto. Justo lo que no queremos de un permiso que existe para cubrir una
+  // ausencia. Es una consulta más, sobre una tabla que la portada ya consulta igual.
+  const user = await getCurrentUser();
+  if (!user || user.role !== ROLES.ADMIN_P360) redirect("/dashboard");
+  if (session.user.empresaId) redirect("/dashboard");
+  return session;
+}
+
 /** ¿El usuario pertenece al staff de Procesos360 (ve todas las empresas)? */
 export function esStaffP360(role: Role): boolean {
   return ROLES_P360.includes(role);
