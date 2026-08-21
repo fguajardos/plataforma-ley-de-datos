@@ -3,11 +3,13 @@ import { prisma } from "@/lib/db";
 import { requireSession, puedeVerSeguimiento } from "@/lib/session";
 import { pendientesDelDiagnostico, queFalta } from "@/lib/data/pendientes";
 import { avanceDelDiagnostico } from "@/lib/data/avance";
+import { coberturaDelDiagnostico } from "@/lib/data/cobertura";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { BotonRecordatorio } from "@/components/BotonRecordatorio";
 import { AvanceDiagnostico } from "@/components/AvanceDiagnostico";
+import { CoberturaDocumental } from "@/components/CoberturaDocumental";
 
 export const metadata = { title: "Seguimiento · Procesos360" };
 
@@ -36,6 +38,7 @@ export default async function SeguimientoPage({
   if (!(await puedeVerSeguimiento(diag.empresaId))) notFound();
 
   const avance = await avanceDelDiagnostico(id);
+  const cobertura = await coberturaDelDiagnostico(id);
   const participantes = await pendientesDelDiagnostico(id);
   const pendientes = participantes.filter((u) => !u.alDia);
   const alDia = participantes.filter((u) => u.alDia);
@@ -81,6 +84,14 @@ export default async function SeguimientoPage({
       {avance && (
         <div className="mb-6">
           <AvanceDiagnostico datos={avance} />
+        </div>
+      )}
+
+      {/* Cuánto se respondió y cuánta documentación lo respalda son las dos mitades del
+          mismo control: un dominio contestado sin respaldo no está terminado. */}
+      {cobertura && (
+        <div className="mb-6">
+          <CoberturaDocumental datos={cobertura} />
         </div>
       )}
 

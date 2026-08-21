@@ -6,6 +6,7 @@ import { coberturaDelDiagnostico, type CoberturaDominio } from "@/lib/data/cober
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
+import { CoberturaDocumental } from "@/components/CoberturaDocumental";
 import { ClasificarEvidencia } from "./ClasificarEvidencia";
 
 export const metadata = { title: "Documentos · Procesos360" };
@@ -58,6 +59,10 @@ export default async function DocumentosPage({ params }: { params: Promise<{ id:
         title="Cobertura documental"
         subtitle={`${diag.empresa.razonSocial} · qué documentación llegó, qué falta y a quién pedírsela`}
       />
+
+      <div className="mb-6">
+        <CoberturaDocumental datos={cob} />
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Kpi label="Documentos cargados" valor={cob.totalDocumentos} />
