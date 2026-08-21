@@ -45,8 +45,16 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
   const porEnviar = u.dominios.filter((d) => d.listoSinEnviar);
   const evidencias = u.dominios.reduce((n, d) => n + d.sinEvidencia, 0);
   const soloCuestionarioListo = porResponder === 0 && sinMirada === 0;
+  // A quien no ha registrado ni una respuesta no se le habla del detalle: "7 sin tu
+  // mirada" da a entender que revisó algo y lo dejó a medias. Lo que necesita saber es
+  // que todavía no empieza y por dónde entrar.
+  const nuncaEmpezo = u.aportes === 0;
 
-  const subject = !soloCuestionarioListo
+  const subject = nuncaEmpezo
+    ? u.dominios.length === 1
+      ? `Diagnóstico LPDP — te espera el dominio de ${u.dominios[0].nombre}`
+      : `Diagnóstico LPDP — te esperan ${u.dominios.length} dominios por responder`
+    : !soloCuestionarioListo
     ? u.dominios.length === 1
       ? `Diagnóstico LPDP — te queda pendiente el dominio de ${u.dominios[0].nombre}`
       : `Diagnóstico LPDP — tienes ${u.dominios.length} dominios pendientes`
@@ -56,7 +64,13 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
         ? `Diagnóstico LPDP — solo falta que envíes ${porEnviar.length === 1 ? "tu dominio" : `tus ${porEnviar.length} dominios`}`
         : "Diagnóstico LPDP — te queda un paso pendiente";
 
-  const intro = soloCuestionarioListo
+  const intro = nuncaEmpezo
+    ? `Todavía no registras ninguna respuesta en la plataforma. ${
+        u.dominios.length === 1
+          ? "Este es el dominio que tienes a tu cargo"
+          : `Estos son los ${u.dominios.length} dominios que tienes a tu cargo`
+      }:`
+    : soloCuestionarioListo
     ? evidencias > 0
       ? "Ya respondiste todas las preguntas. Lo único que falta es adjuntar los documentos que respaldan tus respuestas."
       : "Buenas noticias: ya está todo respondido. Solo queda un paso para que podamos revisarlo."
@@ -64,31 +78,42 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
         u.dominios.length === 1 ? "el dominio" : "los dominios"
       } a tu cargo:`;
 
+  // Sin nada registrado, "qué falta" es todo: se muestra el tamaño de la tarea.
+  const detalle = (d: (typeof u.dominios)[number]) =>
+    nuncaEmpezo ? `${d.total} ${d.total === 1 ? "pregunta" : "preguntas"}` : queFalta(d);
+
   const filas = u.dominios
     .map(
       (d) => `<tr>
         <td style="padding:11px 14px;border-bottom:1px solid #eef1f5;font-weight:600;color:#111827">${d.orden}. ${d.nombre}</td>
-        <td style="padding:11px 14px;border-bottom:1px solid #eef1f5;text-align:right;white-space:nowrap;color:#374151">${queFalta(d)}</td>
+        <td style="padding:11px 14px;border-bottom:1px solid #eef1f5;text-align:right;white-space:nowrap;color:#374151">${detalle(d)}</td>
       </tr>`
     )
     .join("");
 
   const notas: string[] = [];
-  if (sinMirada > 0) {
+  if (nuncaEmpezo) {
+    notas.push(
+      `Entra con tu usuario y contraseña, acepta el <strong>consentimiento informado</strong> y
+       abre cualquiera de tus dominios. Cada pregunta se guarda sola apenas la respondes, así
+       que puedes hacerlo en varias veces y salir cuando quieras.`
+    );
+  }
+  if (!nuncaEmpezo && sinMirada > 0) {
     notas.push(
       `Donde dice <em>“sin tu mirada”</em> ya respondió un colega. <strong>Registra igual la tuya</strong>,
        aunque no coincida: cada uno conoce una parte distinta de la operación y esas diferencias son
        justamente lo que necesitamos ver.`
     );
   }
-  if (evidencias > 0) {
+  if (!nuncaEmpezo && evidencias > 0) {
     notas.push(
       `Marcaste que el control existe, así que necesitamos el documento que lo demuestra: se adjunta
        en la misma pregunta, con <strong>“Subir evidencia”</strong>. Mientras falte, el dominio no se
        puede enviar a validación aunque el cuestionario se vea completo.`
     );
   }
-  if (porEnviar.length > 0) {
+  if (!nuncaEmpezo && porEnviar.length > 0) {
     notas.push(
       `${porEnviar.length === 1 ? "Un dominio ya está completo" : `${porEnviar.length} dominios ya están completos`}:
        solo falta apretar <strong>“Enviar respuestas a validación”</strong> dentro del dominio.
@@ -144,10 +169,11 @@ export function plantillaRecordatorio(u: PendientesUsuario) {
 
 ${intro}
 
-${u.dominios.map((d) => `  - ${d.orden}. ${d.nombre}: ${queFalta(d)}`).join("\n")}
+${u.dominios.map((d) => `  - ${d.orden}. ${d.nombre}: ${detalle(d)}`).join("\n")}
 ${porResponder + sinMirada > 0 ? `\nSon ${porResponder + sinMirada} preguntas en total. Para cada una necesitamos la nota del 0 al 5, un comentario breve y, si existe, el documento que lo respalde.` : ""}
-${evidencias > 0 ? `\nFalta adjuntar ${evidencias === 1 ? "1 documento" : `${evidencias} documentos`}: se sube en la misma pregunta, con "Subir evidencia". Mientras falte, el dominio no se puede enviar a validación.` : ""}
-${porEnviar.length > 0 ? `\n${porEnviar.length === 1 ? "Un dominio ya está completo" : `${porEnviar.length} dominios ya están completos`}: falta apretar "Enviar respuestas a validación" dentro del dominio.` : ""}
+${nuncaEmpezo ? `\nEntra con tu usuario y contraseña, acepta el consentimiento informado y abre cualquiera de tus dominios. Cada pregunta se guarda sola apenas la respondes, así que puedes hacerlo en varias veces y salir cuando quieras.` : ""}
+${!nuncaEmpezo && evidencias > 0 ? `\nFalta adjuntar ${evidencias === 1 ? "1 documento" : `${evidencias} documentos`}: se sube en la misma pregunta, con "Subir evidencia". Mientras falte, el dominio no se puede enviar a validación.` : ""}
+${!nuncaEmpezo && porEnviar.length > 0 ? `\n${porEnviar.length === 1 ? "Un dominio ya está completo" : `${porEnviar.length} dominios ya están completos`}: falta apretar "Enviar respuestas a validación" dentro del dominio.` : ""}
 
 Ingresa en: ${APP_URL}
 

@@ -174,16 +174,29 @@ export default async function SeguimientoPage({
                         {u.ultimoRecordatorio && ` · recordado ${haceCuanto(u.ultimoRecordatorio)}`}
                       </p>
 
-                      <ul className="mt-2 space-y-1">
-                        {u.dominios.map((d) => (
-                          <li key={d.orden} className="text-sm text-slate-600">
-                            <span className="font-medium text-slate-700">
-                              {d.orden}. {d.nombre}
-                            </span>{" "}
-                            <span className="text-slate-400">— {queFalta(d)}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {/* A quien no ha registrado nada, el desglose le miente: decir
+                          "7 sin tu mirada" da a entender que un colega respondió y esta
+                          persona no lo revisó, cuando ni siquiera abrió la plataforma. Lo
+                          único accionable es que entre, así que se listan sus dominios. */}
+                      {u.ultimaActividad ? (
+                        <ul className="mt-2 space-y-1">
+                          {u.dominios.map((d) => (
+                            <li key={d.orden} className="text-sm text-slate-600">
+                              <span className="font-medium text-slate-700">
+                                {d.orden}. {d.nombre}
+                              </span>{" "}
+                              <span className="text-slate-400">— {queFalta(d)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-slate-600">
+                          <span className="text-slate-400">Sin empezar. A su cargo: </span>
+                          <span className="font-medium text-slate-700">
+                            {u.dominios.map((d) => `${d.orden}. ${d.nombre}`).join(" · ")}
+                          </span>
+                        </p>
+                      )}
                     </div>
 
                     <div className="shrink-0 text-right">
