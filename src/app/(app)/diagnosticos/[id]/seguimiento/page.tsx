@@ -2,12 +2,12 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession, puedeVerSeguimiento } from "@/lib/session";
 import { pendientesDelDiagnostico, queFalta } from "@/lib/data/pendientes";
-import { avanceDelDiagnostico } from "@/lib/data/avance";
-import { coberturaDelDiagnostico } from "@/lib/data/cobertura";
+import { panelEjecutivo } from "@/lib/data/panel";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, Badge } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { BotonRecordatorio } from "@/components/BotonRecordatorio";
+import { PanelEjecutivo } from "@/components/PanelEjecutivo";
 import { AvanceDiagnostico } from "@/components/AvanceDiagnostico";
 import { PersonasPorDominio } from "@/components/PersonasPorDominio";
 import { CoberturaDocumental } from "@/components/CoberturaDocumental";
@@ -38,8 +38,9 @@ export default async function SeguimientoPage({
   if (!diag) notFound();
   if (!(await puedeVerSeguimiento(diag.empresaId))) notFound();
 
-  const avance = await avanceDelDiagnostico(id);
-  const cobertura = await coberturaDelDiagnostico(id);
+  // Una sola consulta compone la vista de gerencia y devuelve de paso el avance y la
+  // cobertura, que el detalle operativo de más abajo reutiliza sin volver a pedirlos.
+  const panel = await panelEjecutivo(id);
   const participantes = await pendientesDelDiagnostico(id);
   const pendientes = participantes.filter((u) => !u.alDia);
   const alDia = participantes.filter((u) => u.alDia);
@@ -82,18 +83,26 @@ export default async function SeguimientoPage({
       />
       <DiagnosticoNav id={id} active="seguimiento" />
 
-      {avance && (
-        <div className="mb-6 space-y-6">
-          <PersonasPorDominio datos={avance} />
-          <AvanceDiagnostico datos={avance} />
+      {panel && (
+        <div className="mb-8">
+          <PanelEjecutivo datos={panel} />
         </div>
       )}
 
-      {/* Cuánto se respondió y cuánta documentación lo respalda son las dos mitades del
-          mismo control: un dominio contestado sin respaldo no está terminado. */}
-      {cobertura && (
-        <div className="mb-6">
-          <CoberturaDocumental datos={cobertura} />
+      {/* De aquí para abajo es la vista del consultor: el detalle con el que se trabaja,
+          no el que se le presenta a una gerencia. */}
+      <div className="mb-4 border-t border-slate-200 pt-6">
+        <h2 className="text-sm font-semibold text-slate-700">Detalle operativo</h2>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Quién respondió qué, cuánto se avanzó y qué documentación llegó.
+        </p>
+      </div>
+
+      {panel && (
+        <div className="mb-6 space-y-6">
+          <PersonasPorDominio datos={panel.avance} />
+          <AvanceDiagnostico datos={panel.avance} />
+          {panel.cobertura && <CoberturaDocumental datos={panel.cobertura} />}
         </div>
       )}
 
