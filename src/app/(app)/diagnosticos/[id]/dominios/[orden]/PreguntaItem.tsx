@@ -134,19 +134,32 @@ export function PreguntaItem({
           </div>
           <p className="mt-1 text-xs text-slate-500">{pregunta.descripcion}</p>
 
-          {estado === "OBSERVADA" && respuesta.observacionConsultor && (
-            <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
-                Observación del consultor
-              </p>
-              <p className="mt-0.5 text-sm text-orange-900">{respuesta.observacionConsultor}</p>
-              {!soloLectura && !puedeValidar && (
-                <p className="mt-1 text-xs text-orange-700">
-                  Puedes corregir esta pregunta aunque el resto del dominio esté cerrado.
+          {respuesta.observacionConsultor &&
+            (estado === "OBSERVADA" ? (
+              <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                  Observación del consultor
                 </p>
-              )}
-            </div>
-          )}
+                <p className="mt-0.5 text-sm text-orange-900">{respuesta.observacionConsultor}</p>
+                {!soloLectura && !puedeValidar && (
+                  <p className="mt-1 text-xs text-orange-700">
+                    Corrige esta pregunta y se guardará sola{bloqueado ? ", aunque el resto del dominio esté cerrado" : ""}.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Observación del consultor · ya corregida
+                </p>
+                <p className="mt-0.5 text-sm text-slate-600">{respuesta.observacionConsultor}</p>
+                {puedeValidar && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Se borra al validar la pregunta.
+                  </p>
+                )}
+              </div>
+            ))}
           {pregunta.evidenciaObligatoria &&
             (["3", "4", "5"].includes(valor ?? "") ? (
               <p className="mt-1 text-xs font-medium text-orange-600">Requiere evidencia documental</p>
@@ -266,9 +279,7 @@ export function PreguntaItem({
             puedeValidar={!!puedeValidar}
           />
 
-          {puedeValidar && bloqueado && (
-            <ValidarRespuesta respuestaId={respuesta.id} estado={estado} />
-          )}
+          {puedeValidar && <ValidarRespuesta respuestaId={respuesta.id} estado={estado} />}
 
           {/* Bitácora de la pregunta: quién cambió qué y cuándo. Solo el consultor. */}
           {puedeValidar && <HistorialPregunta respuestaId={respuesta.id} />}
