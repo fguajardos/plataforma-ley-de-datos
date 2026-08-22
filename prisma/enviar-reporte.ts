@@ -186,7 +186,7 @@ async function main() {
   const destinos = args.filter((a) => a.includes("@") && a !== testTo);
 
   const diag = await prisma.diagnostico.findFirst({
-    where: { empresa: { rut: "11.111.111-1" } },
+    where: { empresa: { rut: "96.870.620-9" } },
     orderBy: { createdAt: "desc" },
     select: { id: true },
   });

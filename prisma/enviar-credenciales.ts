@@ -73,7 +73,7 @@ async function main() {
   let objetivos: string[] = [];
   if (allHonda) {
     const honda = await prisma.user.findMany({
-      where: { role: "RESPONSABLE_DOMINIO", empresa: { rut: "11.111.111-1" } },
+      where: { role: "RESPONSABLE_DOMINIO", empresa: { rut: "96.870.620-9" } },
       select: { email: true },
       orderBy: { email: "asc" },
     });

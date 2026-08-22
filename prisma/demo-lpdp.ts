@@ -31,7 +31,7 @@ async function ctx() {
   if (!user) throw new Error(`No existe la cuenta ${CUENTA_DEMO}`);
 
   const diag = await prisma.diagnostico.findFirst({
-    where: { empresa: { rut: "11.111.111-1" } },
+    where: { empresa: { rut: "96.870.620-9" } },
     orderBy: { createdAt: "desc" },
     select: { id: true, nombre: true },
   });
