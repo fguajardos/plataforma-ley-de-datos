@@ -229,11 +229,13 @@ export default async function DominioPage({
         </CardContent>
       </Card>
 
-      {puedeValidar && dominioEnviado ? (
+      {puedeValidar ? (
         <ValidacionDominio
           diagnosticoDominioId={dd.id}
           completado={dd.estado === "COMPLETADO"}
+          cerrado={dominioEnviado}
           total={total}
+          respondidas={dd.respuestas.filter((r) => r.valor != null).length}
           validadas={dd.respuestas.filter((r) => r.estado === "VALIDADA").length}
           observadas={dd.respuestas.filter((r) => r.estado === "OBSERVADA").length}
           sinEvidencia={

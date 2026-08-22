@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Textarea } from "@/components/ui";
-import { validarRespuesta, observarRespuesta } from "./validacion-actions";
+import { validarRespuesta, observarRespuesta, quitarValidacion } from "./validacion-actions";
 
 /**
- * Controles de revisión de una pregunta. Solo los ve el equipo consultor, y solo
- * mientras el dominio está en validación: validar algo que el participante todavía
- * puede cambiar no significaría nada.
+ * Controles de revisión de una pregunta. Solo los ve el equipo consultor.
+ *
+ * Están disponibles en cualquier momento y no solo con el dominio ya enviado: dejar una
+ * observación mientras se trabaja el cuestionario es justamente cuando más sirve.
  */
 export function ValidarRespuesta({
   respuestaId,
@@ -29,6 +30,15 @@ export function ValidarRespuesta({
       const res = await validarRespuesta(respuestaId);
       if (res.ok) router.refresh();
       else setError(res.error ?? "No se pudo validar.");
+    });
+  }
+
+  function quitar() {
+    setError(null);
+    startTransition(async () => {
+      const res = await quitarValidacion(respuestaId);
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo quitar la validación.");
     });
   }
 
@@ -97,7 +107,17 @@ export function ValidarRespuesta({
         {estado === "OBSERVADA" ? "Cambiar la observación" : "Observar"}
       </button>
       {estado === "VALIDADA" && (
-        <span className="text-xs text-green-600">Validada por el equipo consultor.</span>
+        <>
+          <button
+            type="button"
+            onClick={quitar}
+            disabled={pending}
+            className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-700 disabled:opacity-50"
+          >
+            Quitar validación
+          </button>
+          <span className="text-xs text-green-600">Validada por el equipo consultor.</span>
+        </>
       )}
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>

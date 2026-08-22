@@ -147,9 +147,6 @@ export async function cerrarDominio(
     return { ok: false, error: "Sin acceso." };
   }
   if (dd.estado === "COMPLETADO") return { ok: false, error: "Este dominio ya está cerrado." };
-  if (dd.estado !== "EN_VALIDACION") {
-    return { ok: false, error: "El dominio todavía no se ha enviado a validación." };
-  }
 
   const sinResponder = dd.respuestas.filter((r) => r.valor == null).map((r) => r.pregunta.orden);
   if (sinResponder.length > 0) {
@@ -211,5 +208,86 @@ export async function reabrirDominio(
 
   revalidar(dd.diagnostico.id, dd.dominio.orden);
   revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+// ───────────────────── Revisión en bloque ─────────────────────
+//
+// Un dominio tiene entre 4 y 16 preguntas y la mayoría se valida sin observaciones:
+// obligar a apretar "Validar" dieciséis veces convierte la revisión en un trámite, y lo
+// que se vuelve trámite se hace sin mirar.
+
+export type BloqueResult = { ok: boolean; error?: string; afectadas?: number };
+
+async function accesoAlDominio(diagnosticoDominioId: string) {
+  const session = await requireSession();
+  if (!esStaffP360(session.user.role)) return { error: "Solo el equipo consultor puede hacer esto." };
+  const dd = await prisma.diagnosticoDominio.findUnique({
+    where: { id: diagnosticoDominioId },
+    select: {
+      id: true,
+      dominio: { select: { orden: true } },
+      diagnostico: { select: { id: true, empresaId: true } },
+    },
+  });
+  if (!dd) return { error: "Dominio no encontrado." };
+  if (sinAccesoAEmpresa(session, dd.diagnostico.empresaId)) return { error: "Sin acceso." };
+  return { dd };
+}
+
+/** Da por buenas todas las respuestas contestadas del dominio. */
+export async function validarTodas(diagnosticoDominioId: string): Promise<BloqueResult> {
+  const { dd, error } = await accesoAlDominio(diagnosticoDominioId);
+  if (error || !dd) return { ok: false, error };
+
+  const { count } = await prisma.respuesta.updateMany({
+    // Una pregunta sin responder no se puede dar por buena: no hay qué validar.
+    where: { diagnosticoDominioId, valor: { not: null }, estado: { not: "VALIDADA" } },
+    data: { estado: "VALIDADA", observacionConsultor: null },
+  });
+
+  revalidar(dd.diagnostico.id, dd.dominio.orden);
+  return { ok: true, afectadas: count };
+}
+
+/**
+ * Deshace la validación: las respuestas vuelven a estar simplemente contestadas.
+ *
+ * No toca las observadas: esas esperan una corrección del participante, y devolverlas a
+ * "respondida" borraría el pedido sin que nadie lo haya atendido.
+ */
+export async function deshacerValidaciones(
+  diagnosticoDominioId: string
+): Promise<BloqueResult> {
+  const { dd, error } = await accesoAlDominio(diagnosticoDominioId);
+  if (error || !dd) return { ok: false, error };
+
+  const { count } = await prisma.respuesta.updateMany({
+    where: { diagnosticoDominioId, estado: "VALIDADA" },
+    data: { estado: "RESPONDIDA" },
+  });
+
+  revalidar(dd.diagnostico.id, dd.dominio.orden);
+  return { ok: true, afectadas: count };
+}
+
+/** Quita la validación de una sola pregunta. */
+export async function quitarValidacion(respuestaId: string): Promise<ValidacionResult> {
+  const session = await requireSession();
+  if (!esStaffP360(session.user.role)) {
+    return { ok: false, error: "Solo el equipo consultor puede hacer esto." };
+  }
+  const r = await contexto(respuestaId);
+  if (!r) return { ok: false, error: "Pregunta no encontrada." };
+  if (sinAccesoAEmpresa(session, r.diagnosticoDominio.diagnostico.empresaId)) {
+    return { ok: false, error: "Sin acceso." };
+  }
+
+  await prisma.respuesta.update({
+    where: { id: respuestaId },
+    data: { estado: "RESPONDIDA" },
+  });
+
+  revalidar(r.diagnosticoDominio.diagnostico.id, r.diagnosticoDominio.dominio.orden);
   return { ok: true };
 }

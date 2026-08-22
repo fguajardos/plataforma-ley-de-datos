@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
-import { cerrarDominio, reabrirDominio } from "./validacion-actions";
+import { cerrarDominio, reabrirDominio, validarTodas, deshacerValidaciones } from "./validacion-actions";
 
 /**
  * Cierre del dominio por parte del consultor, y su contrapeso: reabrirlo.
@@ -14,14 +14,19 @@ import { cerrarDominio, reabrirDominio } from "./validacion-actions";
 export function ValidacionDominio({
   diagnosticoDominioId,
   completado,
+  cerrado,
   total,
+  respondidas,
   validadas,
   observadas,
   sinEvidencia,
 }: {
   diagnosticoDominioId: string;
   completado: boolean;
+  /** Ya enviado a validación o cerrado: solo entonces tiene sentido reabrirlo. */
+  cerrado: boolean;
   total: number;
+  respondidas: number;
   validadas: number;
   observadas: number;
   sinEvidencia: number;
@@ -30,6 +35,15 @@ export function ValidacionDominio({
   const [pending, startTransition] = useTransition();
   const [confirmandoReapertura, setConfirmandoReapertura] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function correr(accion: () => Promise<{ ok: boolean; error?: string }>) {
+    setError(null);
+    startTransition(async () => {
+      const res = await accion();
+      if (res.ok) router.refresh();
+      else setError(res.error ?? "No se pudo completar la acción.");
+    });
+  }
 
   function cerrar() {
     setError(null);
@@ -85,12 +99,33 @@ export function ValidacionDominio({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Validar una por una son hasta dieciséis clics, y lo que se vuelve trámite se
+              hace sin mirar. El botón por pregunta sigue ahí para lo que sí hay que mirar. */}
+          {validadas < respondidas && (
+            <Button
+              variant="secondary"
+              onClick={() => correr(() => validarTodas(diagnosticoDominioId))}
+              disabled={pending}
+            >
+              Validar las {respondidas - validadas} restantes
+            </Button>
+          )}
+          {validadas > 0 && (
+            <button
+              type="button"
+              onClick={() => correr(() => deshacerValidaciones(diagnosticoDominioId))}
+              disabled={pending}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:border-slate-400 hover:text-slate-900 disabled:opacity-50"
+            >
+              Deshacer validación
+            </button>
+          )}
           {!completado && (
             <Button onClick={cerrar} disabled={pending || !puedeCerrar}>
               {pending ? "Guardando…" : "Cerrar dominio"}
             </Button>
           )}
-          {confirmandoReapertura ? (
+          {!cerrado ? null : confirmandoReapertura ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-slate-700">
                 Volverá a quedar editable para todos sus participantes. ¿Seguro?
