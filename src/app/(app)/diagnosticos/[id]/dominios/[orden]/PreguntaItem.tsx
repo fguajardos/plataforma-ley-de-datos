@@ -62,6 +62,8 @@ export function PreguntaItem({
   const [error, setError] = useState<string | null>(null);
 
   const comentarioRequerido = requiereComentario(valor);
+  // Una evidencia sin archivo es un pendiente del checklist, no un respaldo cargado.
+  const tieneEvidencia = (evidencias ?? []).some((e) => e.archivoPath);
   // Dos participantes evaluaron distinto la misma práctica: vale la pena mirarlo.
   const discrepan =
     new Set((aportes ?? []).map((a) => a.valor).filter((v) => v != null)).size > 1;
@@ -160,14 +162,11 @@ export function PreguntaItem({
                 )}
               </div>
             ))}
-          {pregunta.evidenciaObligatoria &&
-            (["3", "4", "5"].includes(valor ?? "") ? (
-              <p className="mt-1 text-xs font-medium text-orange-600">Requiere evidencia documental</p>
-            ) : valor == null ? (
-              <p className="mt-1 text-xs text-slate-400">
-                Si el control existe (respuestas 3–5), requiere evidencia documental.
-              </p>
-            ) : null)}
+          {pregunta.evidenciaObligatoria && valor == null && (
+            <p className="mt-1 text-xs text-slate-400">
+              Si el control existe (respuestas 3–5), requiere evidencia documental.
+            </p>
+          )}
 
           {/* Escala */}
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -272,6 +271,34 @@ export function PreguntaItem({
               )}
             </div>
           )}
+
+          {/* Afirmar que el control existe obliga a probarlo, y ese aviso era una línea de
+              doce píxeles allá arriba, lejos del botón de adjuntar: se leía como una nota al
+              margen y no como lo que es. Baja aquí, pegado a donde se resuelve, y con el
+              peso visual de algo que bloquea el cierre del dominio. */}
+          {pregunta.evidenciaObligatoria &&
+            ["3", "4", "5"].includes(valor ?? "") &&
+            (tieneEvidencia ? (
+              <p className="mt-4 text-xs font-medium text-green-700">
+                ✓ Respaldo cargado para esta respuesta.
+              </p>
+            ) : (
+              <div className="mt-4 flex gap-3 rounded-lg border-2 border-orange-300 bg-orange-50 px-4 py-3">
+                <span className="text-lg leading-none" aria-hidden>
+                  📎
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-orange-900">
+                    Esta respuesta necesita un documento que la respalde
+                  </p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-orange-800">
+                    Marcaste <strong>{valor}</strong>, es decir que el control existe. Adjunta
+                    abajo el documento que lo demuestra — una política, un procedimiento, un
+                    registro. <strong>Sin él, este dominio no se puede enviar.</strong>
+                  </p>
+                </div>
+              </div>
+            ))}
 
           <EvidenciasPregunta
             respuestaId={respuesta.id}
