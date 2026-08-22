@@ -1,20 +1,26 @@
-import { NIVEL_MADUREZ } from "@/lib/constants";
 import type { PanelEjecutivo as Datos, EstadoDominio, FilaPanel } from "@/lib/data/panel";
 
 // Vista de gerencia. Tres bloques, en el orden en que se leen:
 //
 //   1. Un titular. Uno solo — tres números compitiendo obligan a elegir, y quien elige
 //      se queda con el más halagador.
-//   2. El semáforo por dominio, coloreado por completitud del levantamiento y no por
-//      avance: un dominio contestado por una sola persona de cinco no está verde.
+//   2. El semáforo por dominio: quién falta y en qué estado va. Coloreado por completitud
+//      del levantamiento y no por avance, porque un dominio contestado por una sola persona
+//      de cinco no está verde.
+//
+//      Tenía además las columnas de preguntas, documentos y madurez. Se quitaron porque la
+//      contraparte del cliente se confundía: cuatro pares de números por fila, midiendo
+//      cosas distintas, obligan a descifrar la tabla en vez de leerla. Nada se pierde —lo
+//      que bloquea está en "Requiere atención", el avance del cuestionario y la cobertura
+//      documental viven en el detalle operativo, y la madurez tiene su propia pestaña.
 //   3. Lo que requiere atención, con nombre y apellido. Un informe a gerencia que no
 //      termina en peticiones concretas no sirve para nada. El rótulo es "atención" y no
 //      "decisión" porque la lista mezcla las dos cosas: hay pendientes que solo hay que
 //      empujar y hay disyuntivas reales. Prometer una elección y entregar una tarea le
 //      quita fuerza al bloque; la palabra "decisión" se reserva para el ítem que sí lo es.
 //
-// La madurez aparece solo donde el levantamiento está completo. Publicarla antes es
-// mostrar un número que se va a mover, y cuando se mueva el informe pierde autoridad.
+// El dato de madurez sigue calculándose solo donde el levantamiento está completo: mostrarlo
+// antes es publicar un número que se va a mover, y cuando se mueva el informe pierde autoridad.
 
 const ESTADO: Record<
   EstadoDominio,
@@ -147,14 +153,11 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
         </div>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
                 <th className="pb-2 pl-3 font-medium">Dominio</th>
                 <th className="pb-2 pr-3 text-right font-medium">Personas</th>
-                <th className="pb-2 pr-3 text-right font-medium">Preguntas</th>
-                <th className="pb-2 pr-3 text-right font-medium">Documentos</th>
-                <th className="pb-2 pr-3 text-right font-medium">Madurez</th>
                 <th className="pb-2 pr-3 text-right font-medium">Estado</th>
               </tr>
             </thead>
@@ -166,16 +169,10 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
           </table>
         </div>
 
-        <div className="mt-4 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
           <p>
-            <strong>Personas</strong>: cuántos de los responsables del dominio registraron
-            todas sus respuestas. <strong>Preguntas</strong>: cuántas quedaron completas, con
-            su comentario y su respaldo.
-          </p>
-          <p>
-            <strong>Madurez</strong> se publica solo donde el levantamiento está completo. En
-            el resto sería un número provisorio, y de él dependen después las brechas y el
-            plan de acción.
+            <strong>Personas</strong>: cuántos de los responsables del dominio ya registraron
+            todas sus respuestas. Un dominio está completo cuando lo están todos.
           </p>
         </div>
       </div>
@@ -217,7 +214,6 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
 
 function Fila({ f }: { f: FilaPanel }) {
   const e = ESTADO[f.estado];
-  const nivel = f.nivel ? NIVEL_MADUREZ[f.nivel] : null;
 
   return (
     <tr className="border-b border-slate-50 last:border-0">
@@ -238,33 +234,6 @@ function Fila({ f }: { f: FilaPanel }) {
         >
           {f.personasCompletas}/{f.personas}
         </span>
-      </td>
-      <td className="py-2.5 pr-3 text-right tabular-nums text-slate-600">
-        {f.preguntasCompletas}/{f.preguntas}
-      </td>
-      <td className="py-2.5 pr-3 text-right tabular-nums">
-        <span className="text-slate-600">{f.documentos}</span>
-        {f.evidenciaFaltante > 0 && (
-          <span className="ml-1.5 text-xs font-medium text-red-600">
-            faltan {f.evidenciaFaltante}
-          </span>
-        )}
-      </td>
-      <td className="py-2.5 pr-3 text-right">
-        {f.madurez != null && nivel ? (
-          <span className="inline-flex items-center gap-1.5">
-            <span className="tabular-nums font-medium text-slate-800">
-              {f.madurez.toFixed(1)}
-            </span>
-            <span className="text-xs" style={{ color: nivel.color }}>
-              {nivel.label}
-            </span>
-          </span>
-        ) : (
-          <span className="text-xs text-slate-400" title="Aún no concluyente: falta gente por responder">
-            —
-          </span>
-        )}
       </td>
       <td className="py-2.5 pr-3 text-right">
         <span

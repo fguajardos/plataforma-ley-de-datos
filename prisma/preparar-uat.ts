@@ -42,9 +42,11 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 const PASS = process.env.UAT_PASSWORD || "UatLpdp2026!";
-const EQUIPO = [
+// `pass` propia donde interesa una contraseña fácil de dictar en una sesión de pruebas.
+const EQUIPO: { email: string; nombre: string; pass?: string }[] = [
   { email: "francisco.guajardo@procesos360.cl", nombre: "Francisco Guajardo" },
   { email: "consultor@procesos360.cl", nombre: "Consultor de Pruebas" },
+  { email: "admin@procesos360.cl", nombre: "Administrador Procesos360", pass: "Demo1234" },
 ];
 
 async function main() {
@@ -66,8 +68,8 @@ async function main() {
 
   // El staff de pruebas no queda acotado a ninguna empresa: tiene que ver todo, como en
   // producción, o el ambiente no sirve para probar lo que se va a desplegar.
-  const hash = bcrypt.hashSync(PASS, 10);
   for (const u of EQUIPO) {
+    const hash = bcrypt.hashSync(u.pass ?? PASS, 10);
     await prisma.user.upsert({
       where: { email: u.email },
       update: { role: "ADMIN_P360", empresaId: null, activo: true, passwordHash: hash },
@@ -82,7 +84,7 @@ async function main() {
         tourVisto: true,
       },
     });
-    console.log(`  ✓ ${u.email} (ADMIN_P360, ve todo)`);
+    console.log(`  ✓ ${u.email} (ADMIN_P360, ve todo) · ${u.pass ?? PASS}`);
   }
 
   const [emp, users, diags] = await Promise.all([
@@ -91,7 +93,7 @@ async function main() {
     prisma.diagnostico.count(),
   ]);
   console.log(`\nAmbiente listo: ${emp} empresa(s), ${users} usuarios, ${diags} diagnóstico(s).`);
-  console.log(`Contraseña del equipo de pruebas: ${PASS}`);
+  console.log(`Contraseña por defecto del equipo de pruebas: ${PASS}`);
 }
 
 main()
