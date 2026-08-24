@@ -164,6 +164,35 @@ export async function configurarDiagnosticoAction(input: z.input<typeof configSc
           },
         });
 
+        // Incluir un dominio no creaba sus preguntas: solo se generaban al crear el
+        // diagnóstico. Un dominio sumado despues quedaba dentro del alcance con el
+        // cuestionario vacío, y sus participantes sin nada que responder —le pasó a
+        // Honda con Tecnología y Ciberseguridad y con Retención de Datos—. Se crean las
+        // que falten, nunca se borran: una respuesta ya escrita no se toca.
+        if (d.incluido) {
+          const dd = await tx.diagnosticoDominio.findUnique({
+            where: { id: d.diagnosticoDominioId },
+            select: { dominioId: true, respuestas: { select: { preguntaId: true } } },
+          });
+          if (dd) {
+            const yaEstan = dd.respuestas.map((r) => r.preguntaId);
+            const faltan = await tx.pregunta.findMany({
+              where: { dominioId: dd.dominioId, id: { notIn: yaEstan } },
+              select: { id: true },
+            });
+            if (faltan.length > 0) {
+              await tx.respuesta.createMany({
+                data: faltan.map((preg) => ({
+                  diagnosticoDominioId: d.diagnosticoDominioId,
+                  preguntaId: preg.id,
+                  estado: "PENDIENTE",
+                })),
+                skipDuplicates: true,
+              });
+            }
+          }
+        }
+
         const ids = [...new Set(d.participantesIds.filter(Boolean))];
         await tx.participanteDominio.deleteMany({
           where: { diagnosticoDominioId: d.diagnosticoDominioId, userId: { notIn: ids } },

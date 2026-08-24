@@ -96,8 +96,13 @@ export async function panelEjecutivo(diagnosticoId: string): Promise<PanelEjecut
   const filas: FilaPanel[] = avance.dominios.map((d) => {
     const cob = porOrden.get(d.orden);
     const evidenciaFaltante = cob?.faltantesObligatorias.length ?? 0;
-    const personasCompletas = d.personas.filter((p) => p.registradas >= d.total).length;
-    const todasLasMiradas = d.personas.length > 0 && personasCompletas === d.personas.length;
+    // Sin preguntas no hay nada que responder, y sin este resguardo `registradas >= 0`
+    // daba por finalizados a todos: el panel mostró "2 finalizaron · -2 respondiendo" en
+    // dos dominios que estaban vacíos. Un dominio vacío no está completo, está mal armado.
+    const personasCompletas =
+      d.total > 0 ? d.personas.filter((p) => p.registradas >= d.total).length : 0;
+    const todasLasMiradas =
+      d.total > 0 && d.personas.length > 0 && personasCompletas === d.personas.length;
 
     let estado: EstadoDominio;
     if (d.participantesActivos === 0 && d.completas === 0) estado = "SIN_INICIAR";
@@ -112,7 +117,7 @@ export async function panelEjecutivo(diagnosticoId: string): Promise<PanelEjecut
       nombre: d.nombre,
       personas: d.personas.length,
       personasConRespuesta: d.participantesActivos,
-      personasRespondiendo: d.participantesActivos - personasCompletas,
+      personasRespondiendo: Math.max(0, d.participantesActivos - personasCompletas),
       personasCompletas,
       preguntas: d.total,
       preguntasCompletas: d.completas,
