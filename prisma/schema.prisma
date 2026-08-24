@@ -39,6 +39,7 @@ model Empresa {
   areas        Area[]
   usuarios     User[]
   diagnosticos Diagnostico[]
+  tratamientos TratamientoDato[]
 }
 
 model Area {
@@ -54,7 +55,56 @@ model Area {
   trataDatosSensibles  Boolean @default(false)
   usaSistemas          Boolean @default(false)
 
-  dominios DiagnosticoDominio[]
+  dominios     DiagnosticoDominio[]
+  tratamientos TratamientoDato[]
+}
+
+// Registro de Actividades de Tratamiento (RAT).
+//
+// Cuelga de la EMPRESA y no del diagnóstico a propósito: el RAT es un registro vivo que
+// la organización mantiene por obligación legal y que sobrevive a cada levantamiento. Un
+// diagnóstico lo arranca y lo revisa; no lo posee.
+//
+// Cada campo corresponde a lo que la Ley 21.719 exige documentar por actividad. Se
+// guardan como texto libre porque son descripciones, no clasificaciones: obligar a
+// elegir de una lista cerrada haría que el registro diga lo que cabe en la lista y no
+// lo que la empresa realmente hace.
+model TratamientoDato {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  areaId    String?
+  area      Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+
+  nombre    String // "Gestión de postulaciones", "Ficha de cliente en Salesforce"
+  finalidad String?
+
+  categoriasTitulares String? // clientes, trabajadores, postulantes, proveedores
+  categoriasDatos     String? // identificación, contacto, financieros, salud
+  datosSensibles      Boolean @default(false)
+
+  baseLegal String? // consentimiento, contrato, obligación legal, interés legítimo
+  origen    String? // recogido del titular, de un tercero, de fuente pública
+
+  destinatarios String? // a quién se comunican
+  encargados    String? // terceros que tratan por cuenta de la empresa
+  sistemas      String? // dónde viven los datos
+
+  transferenciaInternacional Boolean @default(false)
+  paisesDestino              String?
+  garantiasTransferencia     String?
+
+  plazoConservacion String?
+  medidasSeguridad  String?
+
+  // BORRADOR: lo generó la plataforma o está a medio llenar.
+  // EN_REVISION: la empresa lo completó y el consultor debe revisarlo.
+  // VIGENTE: revisado y en vigor.
+  estado    String   @default("BORRADOR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([empresaId])
 }
 
 // ───────────────────────── Usuarios y roles ─────────────────────────

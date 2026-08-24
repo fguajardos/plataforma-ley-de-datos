@@ -17,6 +17,9 @@ const TABS: { key: string; suffix: string; label: string; control?: boolean }[] 
   // equipo consultor y la contraparte que coordina el levantamiento dentro del cliente.
   { key: "seguimiento", suffix: "/seguimiento", label: "Seguimiento", control: true },
   { key: "documentos", suffix: "/documentos", label: "Documentos" },
+  // El RAT es de la empresa y sobrevive al diagnóstico, pero se trabaja desde aquí: es
+  // donde el levantamiento descubre qué áreas tratan datos.
+  { key: "rat", suffix: "/rat", label: "RAT" },
   { key: "madurez", suffix: "/madurez", label: "Madurez" },
   { key: "brechas", suffix: "/brechas", label: "Brechas" },
   { key: "riesgos", suffix: "/riesgos", label: "Riesgos" },
