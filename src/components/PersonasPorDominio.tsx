@@ -34,6 +34,11 @@ export function PersonasPorDominio({ datos }: { datos: AvanceDiagnostico }) {
   const asignaciones = dominios.reduce((n, d) => n + d.personas.length, 0);
   const conRespuesta = dominios.reduce((n, d) => n + d.participantesActivos, 0);
   const maxPersonas = Math.max(1, ...dominios.map((d) => d.personas.length));
+  const participacion = asignaciones === 0 ? 0 : Math.round((conRespuesta / asignaciones) * 100);
+  // Cuánto del cuestionario está completo, para poder contrastarlo aquí mismo: un
+  // consultor leyó el 74% de avance, lo comparó con este gráfico y no le calzó. Son dos
+  // medidas distintas y ninguna decía cuál era.
+  const avance = datos.porcentaje;
   const ancho = maxPersonas * PASO;
 
   return (
@@ -41,21 +46,34 @@ export function PersonasPorDominio({ datos }: { datos: AvanceDiagnostico }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-            Quiénes han respondido
+            Participación · quiénes han respondido
           </p>
           <p className="mt-1 flex items-baseline gap-2">
             <span className="text-4xl font-bold tabular-nums text-slate-900">
-              {conRespuesta}
+              {participacion}%
             </span>
             <span className="text-sm text-slate-500">
-              de {asignaciones} asignaciones con respuesta registrada
+              {conRespuesta} de {asignaciones} asignaciones con respuesta registrada
             </span>
           </p>
         </div>
-        <p className="text-xs text-slate-400">
-          Cada punto es una persona · {datos.participantes} responsables en total
-        </p>
+        <div className="text-right text-xs text-slate-400">
+          <p>Cada punto es una persona · {datos.participantes} responsables en total</p>
+          <p className="mt-0.5">
+            Avance del cuestionario: <strong className="text-slate-500">{avance}%</strong> ·{" "}
+            {datos.completas} de {datos.total} preguntas completas
+          </p>
+        </div>
       </div>
+
+      {avance - participacion >= 10 && (
+        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+          El cuestionario va <strong>{avance - participacion} puntos</strong> por delante de la
+          participación: hay preguntas contestadas por una sola persona de las varias que
+          debían mirarlas. Que el cuestionario avance no significa que el levantamiento
+          recoja todas las miradas.
+        </p>
+      )}
 
       <ul className="mt-6 space-y-0.5">
         {dominios.map((d) => {

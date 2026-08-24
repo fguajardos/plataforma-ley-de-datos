@@ -1,6 +1,6 @@
 import type { AvanceDiagnostico as Datos } from "@/lib/data/avance";
 
-// Avance del levantamiento en un solo número: cuánto del cuestionario está completo.
+// Avance del cuestionario en un solo número: cuánto del cuestionario está completo.
 //
 // El detalle por dominio vivía aquí y se quitó: el semáforo del panel ejecutivo ya lo
 // cubre, y con mejor criterio. La barra de este bloque se llenaba de verde al responder
