@@ -22,6 +22,9 @@ import type { PanelEjecutivo as Datos, EstadoDominio, FilaPanel } from "@/lib/da
 // El dato de madurez sigue calculándose solo donde el levantamiento está completo: mostrarlo
 // antes es publicar un número que se va a mover, y cuando se mueva el informe pierde autoridad.
 
+// Semáforo, como lo pidió el equipo consultor tras probarlo: rojo sin iniciar, amarillo
+// en curso, verde terminado. Sale de la paleta de estado —no de la categórica— y el color
+// nunca carga el significado solo: cada chip lleva su texto al lado.
 const ESTADO: Record<
   EstadoDominio,
   { label: string; barra: string; texto: string; fondo: string }
@@ -29,14 +32,14 @@ const ESTADO: Record<
   COMPLETO: {
     label: "Completo",
     barra: "bg-green-500",
-    texto: "text-green-700",
-    fondo: "bg-green-50",
+    texto: "text-green-800",
+    fondo: "bg-green-100",
   },
   EN_CURSO: {
     label: "En curso",
-    barra: "bg-blue-500",
-    texto: "text-blue-700",
-    fondo: "bg-blue-50",
+    barra: "bg-yellow-400",
+    texto: "text-yellow-800",
+    fondo: "bg-yellow-100",
   },
   // "Cerrado sin todos" no se entendía, y llamarlo "En curso" sería falso: el dominio
   // está en solo lectura y su gente no puede escribir. Se llama por lo que es —cerrado—
@@ -44,16 +47,16 @@ const ESTADO: Record<
   // Con el resguardo que impide a un participante cerrar sobre sus colegas, llegar aquí
   // ya solo puede ser una decisión deliberada del consultor de acotar el alcance.
   CERRADO_INCOMPLETO: {
-    label: "Cerrado",
-    barra: "bg-orange-500",
-    texto: "text-orange-700",
-    fondo: "bg-orange-50",
+    label: "Cerrado sin todos",
+    barra: "bg-slate-400",
+    texto: "text-slate-700",
+    fondo: "bg-slate-200",
   },
   SIN_INICIAR: {
     label: "Sin iniciar",
-    barra: "bg-slate-300",
-    texto: "text-slate-500",
-    fondo: "bg-slate-100",
+    barra: "bg-red-500",
+    texto: "text-red-800",
+    fondo: "bg-red-100",
   },
 };
 
@@ -148,7 +151,7 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
             Estado por dominio
           </p>
           <p className="text-xs text-slate-400">
-            El color mide si el levantamiento está completo, no cuánto se avanzó.
+            🔴 sin iniciar · 🟡 en curso · 🟢 terminado
           </p>
         </div>
 
@@ -157,7 +160,9 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
             <thead>
               <tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wide text-slate-400">
                 <th className="pb-2 pl-3 font-medium">Dominio</th>
-                <th className="pb-2 pr-3 text-right font-medium">Personas</th>
+                <th className="pb-2 pr-3 text-right font-medium">Asignadas</th>
+                <th className="pb-2 pr-3 text-right font-medium">Respondiendo</th>
+                <th className="pb-2 pr-3 text-right font-medium">Finalizaron</th>
                 <th className="pb-2 pr-3 text-right font-medium">Estado</th>
               </tr>
             </thead>
@@ -171,8 +176,15 @@ export function PanelEjecutivo({ datos }: { datos: Datos }) {
 
         <div className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
           <p>
-            <strong>Personas</strong>: cuántos de los responsables del dominio ya registraron
-            todas sus respuestas. Un dominio está completo cuando lo están todos.
+            <strong>Asignadas</strong>: responsables del dominio ·{" "}
+            <strong>Respondiendo</strong>: empezaron y aún no terminan ·{" "}
+            <strong>Finalizaron</strong>: respondieron todas sus preguntas. Lo que falta para
+            llegar a las asignadas es gente que todavía no abre el dominio.
+          </p>
+          <p className="mt-1">
+            <strong>Sin iniciar</strong> es que nadie ha respondido nada.{" "}
+            <strong>En curso</strong>, que alguien ya está respondiendo pero no han terminado
+            todos. <strong>Completo</strong>, que finalizaron todos y su respaldo está cargado.
           </p>
         </div>
       </div>
@@ -226,13 +238,26 @@ function Fila({ f }: { f: FilaPanel }) {
           </span>
         </div>
       </td>
+      {/* Tres números de la misma unidad —personas— en vez de un "0/1" que respondía a
+          medias. Con esto el estado se explica solo: sin iniciar es nadie respondiendo;
+          en curso es alguien respondiendo sin haber terminado todos. */}
+      <td className="py-2.5 pr-3 text-right tabular-nums text-slate-600">{f.personas}</td>
+      <td className="py-2.5 pr-3 text-right tabular-nums">
+        <span className={f.personasRespondiendo > 0 ? "font-medium text-blue-700" : "text-slate-300"}>
+          {f.personasRespondiendo}
+        </span>
+      </td>
       <td className="py-2.5 pr-3 text-right tabular-nums">
         <span
           className={
-            f.personasCompletas < f.personas ? "font-medium text-orange-600" : "text-slate-600"
+            f.personasCompletas === f.personas && f.personas > 0
+              ? "font-medium text-green-700"
+              : f.personasCompletas > 0
+                ? "text-slate-600"
+                : "text-slate-300"
           }
         >
-          {f.personasCompletas}/{f.personas}
+          {f.personasCompletas}
         </span>
       </td>
       <td className="py-2.5 pr-3 text-right">

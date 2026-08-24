@@ -25,8 +25,13 @@ export type EstadoDominio =
 export type FilaPanel = {
   orden: number;
   nombre: string;
+  /** Cuántas personas tienen el dominio asignado. */
   personas: number;
   personasConRespuesta: number;
+  /** Empezaron y todavía no terminan. Es lo que faltaba: la tabla mostraba solo cuántos
+   *  habían terminado, y el estado miraba si alguien había empezado. Con un solo número
+   *  para dos preguntas distintas, un dominio se veía "0/1 · En curso" y no cerraba. */
+  personasRespondiendo: number;
   /** Personas que respondieron TODAS las preguntas del dominio. */
   personasCompletas: number;
   preguntas: number;
@@ -107,6 +112,7 @@ export async function panelEjecutivo(diagnosticoId: string): Promise<PanelEjecut
       nombre: d.nombre,
       personas: d.personas.length,
       personasConRespuesta: d.participantesActivos,
+      personasRespondiendo: d.participantesActivos - personasCompletas,
       personasCompletas,
       preguntas: d.total,
       preguntasCompletas: d.completas,
