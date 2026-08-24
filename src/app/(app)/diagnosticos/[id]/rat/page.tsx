@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { RatEditor } from "./RatEditor";
+import { PropuestaRat } from "./PropuestaRat";
 
 export const metadata = { title: "RAT · Procesos360" };
 
@@ -125,6 +126,8 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
           Descargar el registro
         </a>
       </div>
+
+      {puedeEditar && <PropuestaRat diagnosticoId={id} empresaId={diag.empresaId} />}
 
       <RatEditor
         empresaId={diag.empresaId}

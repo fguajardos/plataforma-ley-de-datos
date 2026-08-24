@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, sinAccesoAEmpresa } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
+import { proponerActividades, type ActividadPropuesta } from "@/lib/engines/extraccion-rat";
 
 export type RatResult = { ok: boolean; error?: string; creados?: number };
 
@@ -170,4 +171,112 @@ export async function eliminarTratamiento(id: string): Promise<RatResult> {
   await prisma.tratamientoDato.delete({ where: { id } });
   revalidatePath("/diagnosticos", "layout");
   return { ok: true };
+}
+
+// ───────────────── Propuesta a partir del material del cliente ─────────────────
+
+export type PropuestaResult = {
+  ok: boolean;
+  error?: string;
+  actividades?: ActividadPropuesta[];
+  fuentes?: { documentos: number; comentarios: number };
+};
+
+/**
+ * Lee lo que la empresa entregó en el dominio del RAT y propone actividades.
+ *
+ * No escribe nada: devuelve sugerencias con su cita para que el consultor las revise. El
+ * paso de aceptar es deliberadamente aparte, porque un RAT es un registro legal y quien
+ * responde por él es una persona, no el análisis.
+ */
+export async function proponerDesdeElLevantamiento(
+  diagnosticoId: string
+): Promise<PropuestaResult> {
+  const diag = await prisma.diagnostico.findUnique({
+    where: { id: diagnosticoId },
+    select: { empresaId: true },
+  });
+  if (!diag) return { ok: false, error: "Diagnóstico no encontrado." };
+  const { error } = await permiso(diag.empresaId);
+  if (error) return { ok: false, error };
+
+  const r = await proponerActividades(diagnosticoId, 2);
+  if (!r.ok) return { ok: false, error: r.error };
+  if (r.actividades.length === 0) {
+    return {
+      ok: false,
+      error:
+        "El análisis no encontró actividades de tratamiento sustentables en el material. Suele pasar cuando lo entregado describe carencias en vez de tratamientos.",
+    };
+  }
+  return { ok: true, actividades: r.actividades, fuentes: r.fuentes };
+}
+
+const aceptarSchema = z.object({
+  empresaId: z.string().min(1),
+  actividades: z
+    .array(
+      z.object({
+        nombre: z.string().trim().min(3).max(200),
+        area: z.string().nullable().optional(),
+        datosSensibles: z.boolean(),
+        transferenciaInternacional: z.boolean(),
+        finalidad: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        categoriasTitulares: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        categoriasDatos: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        baseLegal: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        origen: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        destinatarios: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        encargados: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        sistemas: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        plazoConservacion: z.object({ valor: z.string(), cita: z.string() }).optional(),
+        medidasSeguridad: z.object({ valor: z.string(), cita: z.string() }).optional(),
+      })
+    )
+    .min(1)
+    .max(40),
+});
+
+/** Crea en el registro las actividades que el consultor aceptó. Siempre como BORRADOR. */
+export async function aceptarPropuesta(
+  input: z.input<typeof aceptarSchema>
+): Promise<RatResult> {
+  const parsed = aceptarSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+  const { empresaId, actividades } = parsed.data;
+  const { error } = await permiso(empresaId);
+  if (error) return { ok: false, error };
+
+  const areas = await prisma.area.findMany({
+    where: { empresaId },
+    select: { id: true, nombre: true },
+  });
+  const porNombre = new Map(areas.map((a) => [a.nombre.toLowerCase(), a.id]));
+  const v = (c?: { valor: string }) => (c?.valor?.trim() ? c.valor.trim() : null);
+
+  await prisma.tratamientoDato.createMany({
+    data: actividades.map((a) => ({
+      empresaId,
+      areaId: a.area ? (porNombre.get(a.area.toLowerCase()) ?? null) : null,
+      nombre: a.nombre,
+      finalidad: v(a.finalidad),
+      categoriasTitulares: v(a.categoriasTitulares),
+      categoriasDatos: v(a.categoriasDatos),
+      baseLegal: v(a.baseLegal),
+      origen: v(a.origen),
+      destinatarios: v(a.destinatarios),
+      encargados: v(a.encargados),
+      sistemas: v(a.sistemas),
+      plazoConservacion: v(a.plazoConservacion),
+      medidasSeguridad: v(a.medidasSeguridad),
+      datosSensibles: a.datosSensibles,
+      transferenciaInternacional: a.transferenciaInternacional,
+      // Nunca entra vigente: lo propuso un análisis y todavía nadie lo verificó contra
+      // la operación real de la empresa.
+      estado: "BORRADOR",
+    })),
+  });
+
+  revalidatePath("/diagnosticos", "layout");
+  return { ok: true, creados: actividades.length };
 }
