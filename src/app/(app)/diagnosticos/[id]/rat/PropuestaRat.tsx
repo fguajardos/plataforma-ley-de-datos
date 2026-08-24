@@ -68,9 +68,10 @@ export function PropuestaRat({
             Proponer actividades desde lo que entregó el cliente
           </p>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Lee los documentos cargados en el dominio 2 y lo que los participantes
-            escribieron al responderlo, y propone las actividades de tratamiento que se
-            desprenden. <strong>Nada entra al registro sin que lo revises</strong>: cada campo
+            Lee <strong>todo el levantamiento</strong> —los comentarios de los diez dominios
+            y los documentos cargados— y propone las actividades de tratamiento que se
+            desprenden. Cruza dominios: la base legal suele estar en el 3, las medidas de
+            seguridad en el 5, los encargados en el 7 y los plazos en el 9. <strong>Nada entra al registro sin que lo revises</strong>: cada campo
             viene con la frase de donde salió.
           </p>
         </div>

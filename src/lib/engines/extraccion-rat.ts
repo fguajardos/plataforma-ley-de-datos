@@ -15,12 +15,16 @@ import { CAMPOS_RAT } from "@/lib/rat";
 //      preferible un registro con huecos —que se ven y se llenan— que uno completo con
 //      supuestos, porque el segundo se firma sin que nadie note el invento.
 //
-// Lee dos fuentes: los documentos cargados en el dominio del RAT y los comentarios que
-// los participantes escribieron al responderlo. Hoy la segunda es la que tiene material.
+// Lee TODO el levantamiento, no solo el dominio del RAT. Cuatro dominios aportan campos
+// que ese no puede dar por sí solo —bases legales el 3, medidas de seguridad el 5,
+// encargados y destinatarios el 7, plazos de conservación el 9— y el material completo
+// son unos 1.500 tokens: leerlo entero cuesta menos que perder esos campos.
 
 const MODELO = "gemini-2.5-flash";
-const MAX_DOCUMENTOS = 6;
-const MAX_MB_POR_DOCUMENTO = 15;
+// Los documentos pesan de verdad y viajan en base64: cuatro es lo que cabe sin arriesgar
+// que la petición se caiga por tiempo. Los comentarios, en cambio, entran todos.
+const MAX_DOCUMENTOS = 4;
+const MAX_MB_POR_DOCUMENTO = 8;
 
 export type CampoPropuesto = { valor: string; cita: string };
 
@@ -51,10 +55,12 @@ export type ResultadoExtraccion = {
 /** Lo que se le manda al modelo, con su procedencia, para poder citarlo después. */
 type Fuente = { etiqueta: string; texto: string };
 
-async function comentariosDelDominio(diagnosticoId: string, orden: number): Promise<Fuente[]> {
-  const dd = await prisma.diagnosticoDominio.findFirst({
-    where: { diagnosticoId, dominio: { orden } },
+async function comentariosDelDiagnostico(diagnosticoId: string): Promise<Fuente[]> {
+  const dds = await prisma.diagnosticoDominio.findMany({
+    where: { diagnosticoId, incluido: true },
+    orderBy: { dominio: { orden: "asc" } },
     select: {
+      dominio: { select: { orden: true, nombre: true } },
       respuestas: {
         orderBy: { pregunta: { orden: "asc" } },
         select: {
@@ -66,29 +72,36 @@ async function comentariosDelDominio(diagnosticoId: string, orden: number): Prom
       },
     },
   });
-  if (!dd) return [];
 
   const fuentes: Fuente[] = [];
-  for (const r of dd.respuestas) {
-    for (const a of r.aportes) {
-      if (!a.comentario?.trim()) continue;
-      fuentes.push({
-        etiqueta: `${a.user.nombre}${a.user.cargo ? ` (${a.user.cargo})` : ""} — pregunta ${r.pregunta.orden}`,
-        texto: `Pregunta: ${r.pregunta.texto}\nRespondió: ${a.comentario.trim()}`,
-      });
+  for (const dd of dds) {
+    for (const r of dd.respuestas) {
+      for (const a of r.aportes) {
+        if (!a.comentario?.trim()) continue;
+        fuentes.push({
+          // El dominio va en la etiqueta porque le dice al modelo qué está leyendo: lo
+          // dicho en "Gestión de Terceros" habla de encargados, y lo de "Retención", de
+          // plazos. Sin eso, todo se lee como si fuera del mismo tema.
+          etiqueta: `Dominio ${dd.dominio.orden} (${dd.dominio.nombre}) · ${a.user.nombre}${a.user.cargo ? ` — ${a.user.cargo}` : ""}`,
+          texto: `Pregunta: ${r.pregunta.texto}\nRespondió: ${a.comentario.trim()}`,
+        });
+      }
     }
   }
   return fuentes;
 }
 
-async function documentosDelDominio(diagnosticoId: string, orden: number) {
+async function documentosDelDiagnostico(diagnosticoId: string) {
   return prisma.evidencia.findMany({
     where: {
       archivoPath: { not: null },
-      respuesta: { diagnosticoDominio: { diagnosticoId, dominio: { orden } } },
+      respuesta: { diagnosticoDominio: { diagnosticoId } },
     },
     select: { nombre: true, archivoPath: true, mimeType: true, tamano: true },
-    take: MAX_DOCUMENTOS,
+    // Los más livianos primero: caben más antes de topar el límite, y un PDF corto suele
+    // ser una política concreta y no un manual entero.
+    orderBy: { tamano: "asc" },
+    take: MAX_DOCUMENTOS * 3,
   });
 }
 
@@ -97,6 +110,8 @@ const INSTRUCCIONES = `Eres un consultor experto en la Ley 21.719 de protección
 Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES DE TRATAMIENTO que se desprenden de él.
 
 Una actividad de tratamiento es una operación concreta con datos personales: "reclutamiento y selección", "ficha de cliente en el CRM", "pago de remuneraciones". No es un sistema ni un área.
+
+El material viene de un cuestionario de 10 dominios y cada respuesta trae anotado de cuál. Úsalo: el dominio 2 habla del inventario de tratamientos, el 3 de bases legales y consentimiento, el 5 de medidas de seguridad, el 7 de encargados y terceros, el 9 de plazos de conservación. Cruza lo dicho en dominios distintos cuando se refiera a la misma actividad —la finalidad puede venir del dominio 2 y su plazo de conservación del 9— y cita siempre la frase del dominio de donde sacaste cada campo.
 
 REGLAS QUE NO PUEDES ROMPER:
 
@@ -155,8 +170,7 @@ function interpretar(texto: string): ActividadPropuesta[] {
  * es contractual y la toma Procesos360 con su cliente; aquí solo se ejecuta.
  */
 export async function proponerActividades(
-  diagnosticoId: string,
-  ordenDominio = 2
+  diagnosticoId: string
 ): Promise<ResultadoExtraccion> {
   const vacio = { actividades: [], fuentes: { documentos: 0, comentarios: 0 } };
   if (!process.env.GEMINI_API_KEY) {
@@ -164,23 +178,25 @@ export async function proponerActividades(
   }
 
   const [comentarios, documentos] = await Promise.all([
-    comentariosDelDominio(diagnosticoId, ordenDominio),
-    documentosDelDominio(diagnosticoId, ordenDominio),
+    comentariosDelDiagnostico(diagnosticoId),
+    documentosDelDiagnostico(diagnosticoId),
   ]);
 
   // Solo PDF e imágenes: los formatos de Office no los ingiere la API, y mandarlos
   // produce un error opaco en vez de un aviso entendible.
-  const legibles = documentos.filter(
-    (d) =>
-      (d.mimeType === "application/pdf" || d.mimeType?.startsWith("image/")) &&
-      (d.tamano ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024
-  );
+  const legibles = documentos
+    .filter(
+      (d) =>
+        (d.mimeType === "application/pdf" || d.mimeType?.startsWith("image/")) &&
+        (d.tamano ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024
+    )
+    .slice(0, MAX_DOCUMENTOS);
 
   if (comentarios.length === 0 && legibles.length === 0) {
     return {
       ok: false,
       error:
-        "No hay material que analizar en este dominio: ni documentos legibles (PDF o imagen) ni comentarios en las respuestas.",
+        "No hay material que analizar: ni documentos legibles (PDF o imagen) ni comentarios en las respuestas del levantamiento.",
       ...vacio,
     };
   }
@@ -190,7 +206,7 @@ export async function proponerActividades(
   if (comentarios.length > 0) {
     partes.push({
       text:
-        "MATERIAL 1 — Lo que los participantes escribieron al responder el cuestionario:\n\n" +
+        "MATERIAL 1 — Lo que los participantes escribieron al responder el cuestionario de los 10 dominios:\n\n" +
         comentarios.map((f) => `[${f.etiqueta}]\n${f.texto}`).join("\n\n"),
     });
   }
@@ -230,7 +246,11 @@ export async function proponerActividades(
           generationConfig: {
             // Temperatura baja: aquí no se quiere creatividad, se quiere fidelidad.
             temperature: 0.1,
-            maxOutputTokens: 8192,
+            // El razonamiento interno del modelo se descuenta de este mismo presupuesto:
+            // con el material de los diez dominios se lo comía entero y el JSON llegaba
+            // cortado a la mitad. Se apaga y se sube el techo.
+            thinkingConfig: { thinkingBudget: 0 },
+            maxOutputTokens: 16384,
             responseMimeType: "application/json",
           },
         }),

@@ -12,6 +12,9 @@ import { PropuestaRat } from "./PropuestaRat";
 
 export const metadata = { title: "RAT · Procesos360" };
 
+// Leer varios PDF y consultar el modelo pasa de los quince segundos por defecto.
+export const maxDuration = 120;
+
 export default async function RatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await requireAccesoSecciones(id);

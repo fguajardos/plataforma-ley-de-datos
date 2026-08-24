@@ -200,7 +200,7 @@ export async function proponerDesdeElLevantamiento(
   const { error } = await permiso(diag.empresaId);
   if (error) return { ok: false, error };
 
-  const r = await proponerActividades(diagnosticoId, 2);
+  const r = await proponerActividades(diagnosticoId);
   if (!r.ok) return { ok: false, error: r.error };
   if (r.actividades.length === 0) {
     return {
