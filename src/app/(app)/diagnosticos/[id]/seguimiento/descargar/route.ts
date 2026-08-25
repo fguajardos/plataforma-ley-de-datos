@@ -64,7 +64,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           valor: true,
           comentario: true,
           pregunta: { select: { evidenciaObligatoria: true } },
-          evidencias: { select: { archivoPath: true } },
+          evidencias: { select: { archivoPath: true, subidoPorId: true } },
           aportes: { select: { userId: true, valor: true, updatedAt: true } },
         },
       },
@@ -87,6 +87,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     "¿Respondió algo?",
     "¿Terminó el dominio?",
     "Responsable de evidencia",
+    "Documentos que subió",
+    "Evidencia pendiente en el dominio",
+    "Estado de esta persona",
     "Preguntas completas del dominio",
     "Última respuesta suya en el dominio",
     "Último recordatorio enviado",
@@ -95,6 +98,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const filas: string[] = [];
   for (const dd of dds) {
     const total = dd.respuestas.length;
+    // Respuestas que afirman que el control existe y no tienen el documento que lo
+    // respalda: es lo que impide cerrar el dominio.
+    const evidenciaPendiente = dd.respuestas.filter(
+      (r) =>
+        r.pregunta.evidenciaObligatoria &&
+        ["3", "4", "5"].includes(r.valor ?? "") &&
+        !r.evidencias.some((e) => e.archivoPath)
+    ).length;
+    // Si hay responsables de evidencia designados, la carga es de ellos; si no, de todos
+    // los participantes del dominio. Mismo criterio que el panel, para que no discrepen.
+    const hayDesignados = dd.participantes.some((x) => x.responsableEvidencia);
+
     const completasDominio = dd.respuestas.filter((r) =>
       respuestaCompleta({
         valor: r.valor,
@@ -109,6 +124,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         .map((r) => r.aportes.find((a) => a.userId === p.user.id))
         .filter((a): a is NonNullable<typeof a> => Boolean(a) && a!.valor != null);
       const respondidas = mios.length;
+      const subidos = dd.respuestas.reduce(
+        (acc, r) =>
+          acc + r.evidencias.filter((e) => e.archivoPath && e.subidoPorId === p.user.id).length,
+        0
+      );
+      const leTocaEvidencia = !hayDesignados || p.responsableEvidencia;
+      const suEvidenciaPendiente = leTocaEvidencia ? evidenciaPendiente : 0;
+
+      // Una sola columna que responde "¿está pendiente, y por qué?" sin tener que cruzar
+      // las otras a ojo. Es la que se filtra en la tabla dinámica.
+      const cerrado = CERRADOS.includes(dd.estado);
+      const termino = total > 0 && respondidas === total;
+      const estadoPersona = cerrado && !termino
+        ? "Cerrado sin su aporte"
+        : respondidas === 0
+          ? "Sin iniciar"
+          : !termino
+            ? "En curso"
+            : suEvidenciaPendiente > 0
+              ? "Respondió, falta evidencia"
+              : "Al día";
       const ultima = mios.reduce<Date | null>(
         (max, a) => (!max || a.updatedAt > max ? a.updatedAt : max),
         null
@@ -132,6 +168,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           celda(respondidas > 0),
           celda(total > 0 && respondidas === total),
           celda(p.responsableEvidencia),
+          celda(subidos),
+          celda(suEvidenciaPendiente),
+          celda(estadoPersona),
           // Del dominio, no de la persona: una pregunta queda completa con el aporte de
           // cualquiera, y su respaldo es compartido.
           celda(completasDominio),
