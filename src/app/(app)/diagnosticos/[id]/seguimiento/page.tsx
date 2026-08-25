@@ -77,10 +77,20 @@ export default async function SeguimientoPage({
 
   return (
     <>
-      <PageHeader
-        title="Seguimiento de participantes"
-        subtitle={`Qué le falta a cada uno en ${diag.nombre}`}
-      />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Seguimiento de participantes"
+          subtitle={`Qué le falta a cada uno en ${diag.nombre}`}
+        />
+        {/* Una fila por persona y dominio: la granularidad que permite dinamizar en Excel
+            sin volver a pedir los datos. */}
+        <a
+          href={`/diagnosticos/${id}/seguimiento/descargar`}
+          className="mt-1 shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand-600 hover:text-brand-600"
+        >
+          Descargar en Excel
+        </a>
+      </div>
       <DiagnosticoNav id={id} active="seguimiento" />
 
       {panel && (
