@@ -179,7 +179,7 @@ export type PropuestaResult = {
   ok: boolean;
   error?: string;
   actividades?: ActividadPropuesta[];
-  fuentes?: { documentos: number; comentarios: number };
+  fuentes?: { documentos: number; comentarios: number; fichas: number };
 };
 
 /**

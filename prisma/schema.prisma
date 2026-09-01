@@ -40,6 +40,7 @@ model Empresa {
   usuarios     User[]
   diagnosticos Diagnostico[]
   tratamientos TratamientoDato[]
+  fichas       FichaProceso[]
 }
 
 model Area {
@@ -57,6 +58,34 @@ model Area {
 
   dominios     DiagnosticoDominio[]
   tratamientos TratamientoDato[]
+  fichas       FichaProceso[]
+}
+
+// Ficha de proceso levantada por el equipo consultor.
+//
+// No es una evidencia. Una evidencia es la prueba que el CLIENTE entrega para respaldar
+// una respuesta suya; una ficha es el trabajo de campo de Procesos360 —la entrevista al
+// area, el flujo dibujado, el inventario que se armo en una sesion—. Mezclarlas haria que
+// el expediente no distinga lo que el cliente afirma de lo que nosotros levantamos, y esa
+// distincion es justamente la que una auditoria mira.
+//
+// Cuelga de la empresa, como el RAT: describe como opera la organizacion y sobrevive al
+// diagnostico que la levanto.
+model FichaProceso {
+  id          String   @id @default(cuid())
+  empresaId   String
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  areaId      String?
+  area        Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  nombre      String
+  descripcion String?
+  archivoPath String?
+  mimeType    String?
+  tamano      Int?
+  subidoPorId String?
+  createdAt   DateTime @default(now())
+
+  @@index([empresaId])
 }
 
 // Registro de Actividades de Tratamiento (RAT).

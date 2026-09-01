@@ -25,7 +25,7 @@ export function PropuestaRat({
   const [pending, startTransition] = useTransition();
   const [propuestas, setPropuestas] = useState<ActividadPropuesta[] | null>(null);
   const [elegidas, setElegidas] = useState<Set<number>>(new Set());
-  const [fuentes, setFuentes] = useState<{ documentos: number; comentarios: number } | null>(null);
+  const [fuentes, setFuentes] = useState<{ documentos: number; comentarios: number; fichas: number } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
   function analizar() {
@@ -94,6 +94,7 @@ export function PropuestaRat({
                 <span className="text-slate-400">
                   {" "}
                   · leyó {fuentes.comentarios} respuestas
+                  {fuentes.fichas > 0 && `, ${fuentes.fichas} fichas de proceso`}
                   {fuentes.documentos > 0 && ` y ${fuentes.documentos} documentos`}
                 </span>
               )}

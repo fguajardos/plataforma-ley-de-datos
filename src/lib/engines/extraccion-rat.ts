@@ -49,7 +49,7 @@ export type ResultadoExtraccion = {
   ok: boolean;
   error?: string;
   actividades: ActividadPropuesta[];
-  fuentes: { documentos: number; comentarios: number };
+  fuentes: { documentos: number; comentarios: number; fichas: number };
 };
 
 /** Lo que se le manda al modelo, con su procedencia, para poder citarlo después. */
@@ -91,6 +91,30 @@ async function comentariosDelDiagnostico(diagnosticoId: string): Promise<Fuente[
   return fuentes;
 }
 
+/**
+ * Fichas de proceso levantadas por el equipo consultor.
+ *
+ * Son la mejor fuente de las tres. Una evidencia prueba un control y un comentario cuenta
+ * una impresión, pero una ficha describe el proceso: qué se hace, con qué datos, quién
+ * los toca y a dónde van. Es literalmente la materia prima de una actividad de
+ * tratamiento, y por eso entra primero.
+ */
+async function fichasDeLaEmpresa(empresaId: string) {
+  return prisma.fichaProceso.findMany({
+    where: { empresaId, archivoPath: { not: null } },
+    select: {
+      nombre: true,
+      descripcion: true,
+      archivoPath: true,
+      mimeType: true,
+      tamano: true,
+      area: { select: { nombre: true } },
+    },
+    orderBy: { tamano: "asc" },
+    take: MAX_DOCUMENTOS * 3,
+  });
+}
+
 async function documentosDelDiagnostico(diagnosticoId: string) {
   return prisma.evidencia.findMany({
     where: {
@@ -112,6 +136,8 @@ Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES D
 Una actividad de tratamiento es una operación concreta con datos personales: "reclutamiento y selección", "ficha de cliente en el CRM", "pago de remuneraciones". No es un sistema ni un área.
 
 El material viene de un cuestionario de 10 dominios y cada respuesta trae anotado de cuál. Úsalo: el dominio 2 habla del inventario de tratamientos, el 3 de bases legales y consentimiento, el 5 de medidas de seguridad, el 7 de encargados y terceros, el 9 de plazos de conservación. Cruza lo dicho en dominios distintos cuando se refiera a la misma actividad —la finalidad puede venir del dominio 2 y su plazo de conservación del 9— y cita siempre la frase del dominio de donde sacaste cada campo.
+
+Cuando haya fichas de proceso levantadas por el equipo consultor, son la fuente más fiable: describen cómo opera el proceso de verdad. Un comentario del cuestionario es una impresión de una persona; una ficha es trabajo de campo. Si se contradicen, quédate con la ficha y dilo en la cita.
 
 REGLAS QUE NO PUEDES ROMPER:
 
@@ -172,27 +198,37 @@ function interpretar(texto: string): ActividadPropuesta[] {
 export async function proponerActividades(
   diagnosticoId: string
 ): Promise<ResultadoExtraccion> {
-  const vacio = { actividades: [], fuentes: { documentos: 0, comentarios: 0 } };
+  const vacio = { actividades: [], fuentes: { documentos: 0, comentarios: 0, fichas: 0 } };
   if (!process.env.GEMINI_API_KEY) {
     return { ok: false, error: "El análisis no está configurado en el servidor.", ...vacio };
   }
 
-  const [comentarios, documentos] = await Promise.all([
+  const diag = await prisma.diagnostico.findUnique({
+    where: { id: diagnosticoId },
+    select: { empresaId: true },
+  });
+  if (!diag) return { ok: false, error: "Diagnóstico no encontrado.", ...vacio };
+
+  const [comentarios, documentos, fichas] = await Promise.all([
     comentariosDelDiagnostico(diagnosticoId),
     documentosDelDiagnostico(diagnosticoId),
+    fichasDeLaEmpresa(diag.empresaId),
   ]);
 
   // Solo PDF e imágenes: los formatos de Office no los ingiere la API, y mandarlos
   // produce un error opaco en vez de un aviso entendible.
-  const legibles = documentos
-    .filter(
-      (d) =>
-        (d.mimeType === "application/pdf" || d.mimeType?.startsWith("image/")) &&
-        (d.tamano ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024
-    )
-    .slice(0, MAX_DOCUMENTOS);
+  const seLee = (m: string | null, tam: number | null) =>
+    (m === "application/pdf" || m?.startsWith("image/")) &&
+    (tam ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024;
 
-  if (comentarios.length === 0 && legibles.length === 0) {
+  // Las fichas tienen prioridad sobre las evidencias: describen el proceso, que es lo que
+  // se está buscando. Las evidencias entran con lo que sobre del cupo.
+  const fichasLegibles = fichas.filter((f) => seLee(f.mimeType, f.tamano)).slice(0, MAX_DOCUMENTOS);
+  const legibles = documentos
+    .filter((d) => seLee(d.mimeType, d.tamano))
+    .slice(0, Math.max(0, MAX_DOCUMENTOS - fichasLegibles.length));
+
+  if (comentarios.length === 0 && legibles.length === 0 && fichasLegibles.length === 0) {
     return {
       ok: false,
       error:
@@ -211,13 +247,34 @@ export async function proponerActividades(
     });
   }
 
+  for (const f of fichasLegibles) {
+    try {
+      const url = await urlFirmadaEvidencia(f.archivoPath!, 300);
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const buf = Buffer.from(await res.arrayBuffer());
+      partes.push({
+        text:
+          `MATERIAL 2 — Ficha de proceso levantada por el equipo consultor: "${f.nombre}"` +
+          (f.area ? ` · área ${f.area.nombre}` : "") +
+          (f.descripcion ? `
+${f.descripcion}` : ""),
+      });
+      partes.push({
+        inlineData: { mimeType: f.mimeType ?? "application/pdf", data: buf.toString("base64") },
+      });
+    } catch {
+      // Una ficha ilegible no detiene el análisis del resto.
+    }
+  }
+
   for (const d of legibles) {
     try {
       const url = await urlFirmadaEvidencia(d.archivoPath!, 300);
       const res = await fetch(url);
       if (!res.ok) continue;
       const buf = Buffer.from(await res.arrayBuffer());
-      partes.push({ text: `MATERIAL 2 — Documento entregado por la empresa: "${d.nombre}"` });
+      partes.push({ text: `MATERIAL 3 — Documento entregado por la empresa: "${d.nombre}"` });
       partes.push({
         inlineData: { mimeType: d.mimeType ?? "application/pdf", data: buf.toString("base64") },
       });
@@ -290,6 +347,10 @@ export async function proponerActividades(
   return {
     ok: true,
     actividades,
-    fuentes: { documentos: legibles.length, comentarios: comentarios.length },
+    fuentes: {
+      documentos: legibles.length,
+      comentarios: comentarios.length,
+      fichas: fichasLegibles.length,
+    },
   };
 }

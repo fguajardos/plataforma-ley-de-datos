@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireAccesoSecciones, sinAccesoAEmpresa } from "@/lib/session";
+import { requireAccesoSecciones, sinAccesoAEmpresa, esStaffP360 } from "@/lib/session";
 import { ratDeEmpresa } from "@/lib/data/rat";
 import { CAMPOS_RAT, faltantesDe } from "@/lib/rat";
 import { ROLES } from "@/lib/constants";
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { DiagnosticoNav } from "@/components/DiagnosticoNav";
 import { RatEditor } from "./RatEditor";
 import { PropuestaRat } from "./PropuestaRat";
+import { FichasProceso } from "./FichasProceso";
 
 export const metadata = { title: "RAT · Procesos360" };
 
@@ -26,17 +27,53 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
   if (!diag) notFound();
   if (sinAccesoAEmpresa(session, diag.empresaId)) notFound();
 
-  const [rat, areas] = await Promise.all([
+  const [rat, areas, fichasRaw] = await Promise.all([
     ratDeEmpresa(diag.empresaId),
     prisma.area.findMany({
       where: { empresaId: diag.empresaId },
       select: { id: true, nombre: true },
       orderBy: { nombre: "asc" },
     }),
+    prisma.fichaProceso.findMany({
+      where: { empresaId: diag.empresaId },
+      select: {
+        id: true,
+        nombre: true,
+        descripcion: true,
+        mimeType: true,
+        tamano: true,
+        subidoPorId: true,
+        createdAt: true,
+        area: { select: { nombre: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   if (!rat) notFound();
 
   const puedeEditar = session.user.role !== ROLES.RESPONSABLE_DOMINIO;
+  const esConsultor = esStaffP360(session.user.role);
+
+  // Quién subió cada ficha, en una consulta y no una por fila.
+  const autores = new Map<string, string>();
+  const idsAutores = [...new Set(fichasRaw.map((f) => f.subidoPorId).filter(Boolean))] as string[];
+  if (idsAutores.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: idsAutores } },
+      select: { id: true, nombre: true },
+    });
+    for (const u of users) autores.set(u.id, u.nombre);
+  }
+  const fichas = fichasRaw.map((f) => ({
+    id: f.id,
+    nombre: f.nombre,
+    descripcion: f.descripcion,
+    areaNombre: f.area?.nombre ?? null,
+    mimeType: f.mimeType,
+    tamano: f.tamano,
+    subidoPor: f.subidoPorId ? (autores.get(f.subidoPorId) ?? null) : null,
+    createdAt: f.createdAt.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
+  }));
   const obligatorios = CAMPOS_RAT.filter((c) => c.obligatorio);
   const faltantesTotales = rat.tratamientos.reduce((n, t) => n + faltantesDe(t).length, 0);
 
@@ -129,6 +166,12 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
           Descargar el registro
         </a>
       </div>
+
+      {/* Las fichas van antes de la propuesta: son el insumo que la mejora, y verlas
+          primero explica por qué el análisis encuentra más cuando hay trabajo de campo. */}
+      {esConsultor && (
+        <FichasProceso empresaId={diag.empresaId} fichas={fichas} areas={areas} />
+      )}
 
       {puedeEditar && <PropuestaRat diagnosticoId={id} empresaId={diag.empresaId} />}
 
