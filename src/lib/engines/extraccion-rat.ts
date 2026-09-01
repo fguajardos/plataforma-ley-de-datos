@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { urlFirmadaEvidencia } from "@/lib/storage";
 import { CAMPOS_RAT } from "@/lib/rat";
+import { esOfficeLegible, extraerTexto } from "@/lib/engines/texto-documento";
 
 // Propuesta de actividades de tratamiento a partir de lo que el cliente ya entregó.
 //
@@ -217,9 +218,44 @@ export async function proponerActividades(
 
   // Solo PDF e imágenes: los formatos de Office no los ingiere la API, y mandarlos
   // produce un error opaco en vez de un aviso entendible.
+  // PDF e imágenes viajan tal cual; Word y Excel se convierten a texto antes de salir.
   const seLee = (m: string | null, tam: number | null) =>
-    (m === "application/pdf" || m?.startsWith("image/")) &&
+    (m === "application/pdf" || Boolean(m?.startsWith("image/")) || esOfficeLegible(m)) &&
     (tam ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024;
+
+  /**
+   * Convierte un archivo en las partes que entiende el modelo.
+   *
+   * Un Office se manda como texto extraído en el servidor; un PDF o una imagen, como
+   * archivo, porque ahí el modelo lee mejor que cualquier extractor —incluidos los
+   * escaneados, que no tienen texto que sacar—.
+   */
+  async function comoPartes(
+    encabezado: string,
+    ruta: string,
+    mimeType: string | null
+  ): Promise<Record<string, unknown>[]> {
+    const url = await urlFirmadaEvidencia(ruta, 300);
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const buf = Buffer.from(await res.arrayBuffer());
+
+    if (esOfficeLegible(mimeType)) {
+      const ex = await extraerTexto(buf, mimeType);
+      if (!ex.ok) return [];
+      return [
+        {
+          text:
+            `${encabezado}\n${ex.texto}` +
+            (ex.truncado ? "\n[…documento recortado por extensión]" : ""),
+        },
+      ];
+    }
+    return [
+      { text: encabezado },
+      { inlineData: { mimeType: mimeType ?? "application/pdf", data: buf.toString("base64") } },
+    ];
+  }
 
   // Las fichas tienen prioridad sobre las evidencias: describen el proceso, que es lo que
   // se está buscando. Las evidencias entran con lo que sobre del cupo.
@@ -232,7 +268,7 @@ export async function proponerActividades(
     return {
       ok: false,
       error:
-        "No hay material que analizar: ni documentos legibles (PDF o imagen) ni comentarios en las respuestas del levantamiento.",
+        "No hay material que analizar: ni documentos legibles (PDF, imagen, Word o Excel) ni comentarios en las respuestas del levantamiento.",
       ...vacio,
     };
   }
@@ -249,20 +285,12 @@ export async function proponerActividades(
 
   for (const f of fichasLegibles) {
     try {
-      const url = await urlFirmadaEvidencia(f.archivoPath!, 300);
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
-      partes.push({
-        text:
-          `MATERIAL 2 — Ficha de proceso levantada por el equipo consultor: "${f.nombre}"` +
-          (f.area ? ` · área ${f.area.nombre}` : "") +
-          (f.descripcion ? `
-${f.descripcion}` : ""),
-      });
-      partes.push({
-        inlineData: { mimeType: f.mimeType ?? "application/pdf", data: buf.toString("base64") },
-      });
+      const encabezado =
+        `MATERIAL 2 — Ficha de proceso levantada por el equipo consultor: "${f.nombre}"` +
+        (f.area ? ` · área ${f.area.nombre}` : "") +
+        (f.descripcion ? `
+${f.descripcion}` : "");
+      partes.push(...(await comoPartes(encabezado, f.archivoPath!, f.mimeType)));
     } catch {
       // Una ficha ilegible no detiene el análisis del resto.
     }
@@ -270,14 +298,13 @@ ${f.descripcion}` : ""),
 
   for (const d of legibles) {
     try {
-      const url = await urlFirmadaEvidencia(d.archivoPath!, 300);
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const buf = Buffer.from(await res.arrayBuffer());
-      partes.push({ text: `MATERIAL 3 — Documento entregado por la empresa: "${d.nombre}"` });
-      partes.push({
-        inlineData: { mimeType: d.mimeType ?? "application/pdf", data: buf.toString("base64") },
-      });
+      partes.push(
+        ...(await comoPartes(
+          `MATERIAL 3 — Documento entregado por la empresa: "${d.nombre}"`,
+          d.archivoPath!,
+          d.mimeType
+        ))
+      );
     } catch {
       // Un documento que no se puede leer no detiene el análisis del resto.
     }

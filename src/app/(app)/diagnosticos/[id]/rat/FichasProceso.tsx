@@ -25,9 +25,20 @@ function peso(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
 }
 
-/** Solo PDF e imágenes los puede leer el análisis; el resto se guarda igual. */
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/**
+ * Qué puede leer el análisis. PDF e imágenes van tal cual al modelo; de Word y Excel se
+ * extrae el texto en el servidor. Quedan fuera los formatos antiguos y las presentaciones.
+ */
 function legible(mime: string | null): boolean {
-  return mime === "application/pdf" || Boolean(mime?.startsWith("image/"));
+  return (
+    mime === "application/pdf" ||
+    Boolean(mime?.startsWith("image/")) ||
+    mime === DOCX ||
+    mime === XLSX
+  );
 }
 
 export function FichasProceso({
@@ -176,8 +187,9 @@ export function FichasProceso({
               className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Hasta {MAX_EVIDENCIA_MB} MB. El análisis lee <strong>PDF e imágenes</strong>; los
-              Word y Excel se guardan igual, pero para que los lea hay que exportarlos a PDF.
+              Hasta {MAX_EVIDENCIA_MB} MB. El análisis lee <strong>PDF, imágenes, Word (.docx) y
+              Excel (.xlsx)</strong>. Los formatos antiguos (.doc, .xls) y las presentaciones hay
+              que exportarlos a PDF.
             </p>
           </div>
           <Button onClick={subir} disabled={subiendo}>
