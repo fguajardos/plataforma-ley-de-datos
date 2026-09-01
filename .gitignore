@@ -52,3 +52,6 @@ next-env.d.ts
 *.xlsx
 *.xls
 *.csv
+
+# Copias completas de la base: contienen datos personales y hashes de contrasena.
+docs/respaldos/
