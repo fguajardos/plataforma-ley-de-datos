@@ -41,6 +41,8 @@ model Empresa {
   diagnosticos Diagnostico[]
   tratamientos TratamientoDato[]
   fichas       FichaProceso[]
+  inventario   DatoInventario[]
+  procesos     ProcesoNegocio[]
 }
 
 model Area {
@@ -105,11 +107,27 @@ model TratamientoDato {
   areaId    String?
   area      Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
 
-  nombre    String // "Gestión de postulaciones", "Ficha de cliente en Salesforce"
-  finalidad String?
+  // Código estable de la actividad dentro del registro: RAT-001. Es lo que permite que la
+  // matriz que se descarga y la que vuelve editada sigan hablando de la misma fila.
+  codigo String?
+
+  nombre        String // "Gestión de postulaciones", "Ficha de cliente en Salesforce"
+  // Procesos del mapa de la empresa donde se ejecuta: "S-4.2 Incorporación de Personas".
+  // Es texto y no una relación porque una actividad suele cruzar varios procesos.
+  procesos      String?
+  // El área tal como la propone el registro —"Comercial / Marketing"—, que no siempre
+  // calza con una de las áreas del levantamiento y a veces abarca dos.
+  areaPropuesta String?
+  duenoProceso  String? // dueño del proceso o Key User que puede validar la fila
+  finalidad     String?
 
   categoriasTitulares String? // clientes, trabajadores, postulantes, proveedores
   categoriasDatos     String? // identificación, contacto, financieros, salud
+  // Códigos del inventario de datos de la empresa: "DP-016, DP-020". Es la trazabilidad
+  // entre el RAT y el inventario, y lo que permite responder "¿dónde se usa el RUT?".
+  idsInventario       String?
+  datosInvolucrados   String? // el detalle concreto: nombre, RUT, remuneración, patente
+  clasificacionDato   String? // personal, sensible, personal asociado
   datosSensibles      Boolean @default(false)
 
   baseLegal String? // consentimiento, contrato, obligación legal, interés legítimo
@@ -123,16 +141,31 @@ model TratamientoDato {
   paisesDestino              String?
   garantiasTransferencia     String?
 
-  plazoConservacion String?
-  medidasSeguridad  String?
+  plazoConservacion       String?
+  criterioEliminacion     String? // cuándo y cómo se elimina, bloquea o anonimiza
+  decisionesAutomatizadas String? // perfilamiento o decisiones sin intervención humana
+  medidasSeguridad        String?
 
-  // BORRADOR: lo generó la plataforma o está a medio llenar.
-  // EN_REVISION: la empresa lo completó y el consultor debe revisarlo.
-  // VIGENTE: revisado y en vigor.
+  evaluarEipd         String? // Sí / No / Por evaluar
+  riesgoPreliminar    String? // Bajo / Medio / Alto / Crítico
+  // Qué documentos hay que pedir para acreditar esta fila. Es lo que convierte el RAT en
+  // una lista de solicitudes concreta y no un registro que se declara y nadie prueba.
+  evidenciasSolicitar String?
+  // De dónde salió la propuesta: la ficha, el comentario o el documento que la sustenta.
+  fuenteDiseno        String?
+  observaciones       String?
+
+  // Estado de validación de la fila:
+  //   BORRADOR         lo generó la plataforma o está a medio llenar
+  //   EN_LEVANTAMIENTO se está completando con el área
+  //   EN_REVISION      la empresa lo completó y el consultor debe revisarlo
+  //   REQUIERE_AJUSTE  se revisó y volvió con observaciones
+  //   VIGENTE          validado y en vigor
   estado    String   @default("BORRADOR")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([empresaId, codigo])
   @@index([empresaId])
 }
 
@@ -456,4 +489,43 @@ model AccionTratamiento {
   validacionConsultor Boolean     @default(false)
 
   evidencias Evidencia[]
+}
+
+/// Inventario de datos personales de la empresa: el catálogo de QUÉ datos trata, con un
+/// código estable por dato (DP-016). Existe aparte del RAT porque el RAT dice qué se hace
+/// con los datos y el inventario dice cuáles son. El cruce de ambos es lo que permite
+/// responder "¿en qué actividades aparece la remuneración?" sin releer las 28 filas.
+model DatoInventario {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  codigo           String // DP-016
+  categoria        String? // Identificación, Contacto, Laboral, Financiero…
+  nombre           String // "Remuneración"
+  titularPrincipal String? // de quién es ese dato
+  areas            String? // áreas que lo tocan
+  clasificacion    String? // Personal, Sensible, Personal asociado
+  procesos         String? // procesos del mapa donde interviene
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+}
+
+/// Mapa de procesos de la empresa. Da el vocabulario con el que se nombran las actividades
+/// del RAT: sin él el análisis inventa nombres de proceso, y la matriz deja de cruzarse con
+/// la arquitectura que el cliente ya tiene.
+model ProcesoNegocio {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  codigo String // S-4.2
+  nombre String // "Incorporación de Personas"
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
 }

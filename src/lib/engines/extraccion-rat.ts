@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { urlFirmadaEvidencia } from "@/lib/storage";
-import { CAMPOS_RAT } from "@/lib/rat";
+import { CAMPOS_ANALIZABLES, type CampoClave } from "@/lib/rat";
 import { esOfficeLegible, extraerTexto } from "@/lib/engines/texto-documento";
 
 // Propuesta de actividades de tratamiento a partir de lo que el cliente ya entregó.
@@ -20,6 +20,11 @@ import { esOfficeLegible, extraerTexto } from "@/lib/engines/texto-documento";
 // que ese no puede dar por sí solo —bases legales el 3, medidas de seguridad el 5,
 // encargados y destinatarios el 7, plazos de conservación el 9— y el material completo
 // son unos 1.500 tokens: leerlo entero cuesta menos que perder esos campos.
+//
+// Funciona de dos maneras. En modo "nuevas" propone actividades que todavía no están en
+// el registro. En modo "completar" recorre las filas que ya existen y solo busca en el
+// material lo que a cada una le falta: es lo que convierte una matriz llena de "Por
+// validar en workshop" en una con celdas llenas y citadas.
 
 const MODELO = "gemini-2.5-flash";
 // Los documentos pesan de verdad y viajan en base64: cuatro es lo que cabe sin arriesgar
@@ -27,21 +32,18 @@ const MODELO = "gemini-2.5-flash";
 const MAX_DOCUMENTOS = 4;
 const MAX_MB_POR_DOCUMENTO = 8;
 
+export type ModoAnalisis = "nuevas" | "completar";
+
 export type CampoPropuesto = { valor: string; cita: string };
 
-export type ActividadPropuesta = {
+export type ActividadPropuesta = Omit<
+  Partial<Record<CampoClave, CampoPropuesto>>,
+  "nombre"
+> & {
   nombre: string;
   area: string | null;
-  finalidad?: CampoPropuesto;
-  categoriasTitulares?: CampoPropuesto;
-  categoriasDatos?: CampoPropuesto;
-  baseLegal?: CampoPropuesto;
-  origen?: CampoPropuesto;
-  destinatarios?: CampoPropuesto;
-  encargados?: CampoPropuesto;
-  sistemas?: CampoPropuesto;
-  plazoConservacion?: CampoPropuesto;
-  medidasSeguridad?: CampoPropuesto;
+  /** En modo "completar", la fila del registro a la que corresponde la propuesta. */
+  codigo?: string | null;
   datosSensibles: boolean;
   transferenciaInternacional: boolean;
 };
@@ -50,7 +52,7 @@ export type ResultadoExtraccion = {
   ok: boolean;
   error?: string;
   actividades: ActividadPropuesta[];
-  fuentes: { documentos: number; comentarios: number; fichas: number };
+  fuentes: { documentos: number; comentarios: number; fichas: number; inventario: number };
 };
 
 /** Lo que se le manda al modelo, con su procedencia, para poder citarlo después. */
@@ -130,28 +132,115 @@ async function documentosDelDiagnostico(diagnosticoId: string) {
   });
 }
 
-const INSTRUCCIONES = `Eres un consultor experto en la Ley 21.719 de protección de datos de Chile, ayudando a construir el Registro de Actividades de Tratamiento (RAT) de una empresa.
+/**
+ * El vocabulario propio de la empresa: su inventario de datos y su mapa de procesos.
+ *
+ * Sin esto el modelo escribe "datos de contacto del cliente" y "proceso comercial", que
+ * no se cruzan con nada. Con esto escribe "DP-007, DP-008" y "N-5.5 Gestión de Leads", y
+ * el RAT queda pegado al inventario que el cliente ya mantiene. Es la diferencia entre un
+ * registro que se lee y uno que se puede auditar.
+ */
+async function vocabularioDeLaEmpresa(empresaId: string) {
+  const [inventario, procesos] = await Promise.all([
+    prisma.datoInventario.findMany({
+      where: { empresaId },
+      select: { codigo: true, nombre: true, categoria: true, clasificacion: true },
+      orderBy: { codigo: "asc" },
+      take: 400,
+    }),
+    prisma.procesoNegocio.findMany({
+      where: { empresaId },
+      select: { codigo: true, nombre: true },
+      orderBy: { codigo: "asc" },
+      take: 400,
+    }),
+  ]);
+  return { inventario, procesos };
+}
 
-Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES DE TRATAMIENTO que se desprenden de él.
+/** Las filas del registro que todavía tienen huecos, con el detalle de cuáles. */
+async function filasPorCompletar(empresaId: string) {
+  const filas = await prisma.tratamientoDato.findMany({
+    where: { empresaId },
+    select: {
+      codigo: true,
+      nombre: true,
+      areaPropuesta: true,
+      finalidad: true,
+      area: { select: { nombre: true } },
+      ...(Object.fromEntries(CAMPOS_ANALIZABLES.map((c) => [c.clave, true])) as Record<
+        string,
+        true
+      >),
+    },
+    orderBy: [{ codigo: "asc" }, { nombre: "asc" }],
+    take: 60,
+  });
+
+  return filas
+    .map((f) => {
+      const registro = f as unknown as Record<string, unknown>;
+      const faltan = CAMPOS_ANALIZABLES.filter((c) => {
+        const v = registro[c.clave];
+        return !(typeof v === "string" && v.trim());
+      });
+      return { ...f, faltan };
+    })
+    .filter((f) => f.faltan.length > 0);
+}
+
+/** El glosario que le dice al modelo qué se espera en cada campo. */
+const GLOSARIO = CAMPOS_ANALIZABLES.map((c) => `- ${c.clave} (${c.etiqueta}): ${c.ayuda}`).join("\n");
+
+/** La forma exacta del JSON, generada de la lista de campos para que no se desincronicen. */
+const FORMA_JSON = `{"actividades":[{"nombre":"...","area":"... o null","datosSensibles":false,"transferenciaInternacional":false,${CAMPOS_ANALIZABLES.map(
+  (c) => `"${c.clave}":{"valor":"...","cita":"..."}`
+).join(",")}}]}`;
+
+const REGLAS = `REGLAS QUE NO PUEDES ROMPER:
+
+1. NO INVENTES. Solo puedes afirmar lo que el material dice. Si la finalidad, la base de licitud o el plazo de conservación no aparecen, OMITE ese campo. Un campo omitido es correcto; un campo inventado hace que un registro legal diga algo falso.
+2. CITA SIEMPRE. Cada campo que propongas debe venir con la frase textual del material de donde lo sacaste, en "cita". Si no puedes citar, no lo propongas.
+3. NO DEDUZCAS LA BASE DE LICITUD. Solo se propone si el material la menciona explícitamente (un contrato, un consentimiento firmado, una obligación legal). Deducirla del contexto es una opinión jurídica y no te corresponde.
+4. USA EL VOCABULARIO DE LA EMPRESA. En "idsInventario" solo pueden ir códigos del inventario entregado, y en "procesos" solo procesos de su mapa. Si un dato o un proceso no está en esas listas, no lo cites: escríbelo en "datosInvolucrados" con su nombre común.
+5. Si el material dice que algo NO existe o NO está controlado, eso NO es una actividad de tratamiento: es una brecha. No la registres como actividad.
+
+Campos que puedes proponer:
+${GLOSARIO}
+
+Devuelve SOLO un JSON válido con esta forma, sin texto alrededor ni markdown:
+
+${FORMA_JSON}
+
+Omite por completo las claves de los campos que no puedas sustentar. "datosSensibles" y "transferenciaInternacional" son obligatorias: ponlas en false salvo que el material diga lo contrario.`;
+
+const COMUN = `Eres un consultor experto en la Ley 21.719 de protección de datos de Chile, ayudando a construir el Registro de Actividades de Tratamiento (RAT) de una empresa.
 
 Una actividad de tratamiento es una operación concreta con datos personales: "reclutamiento y selección", "ficha de cliente en el CRM", "pago de remuneraciones". No es un sistema ni un área.
 
 El material viene de un cuestionario de 10 dominios y cada respuesta trae anotado de cuál. Úsalo: el dominio 2 habla del inventario de tratamientos, el 3 de bases legales y consentimiento, el 5 de medidas de seguridad, el 7 de encargados y terceros, el 9 de plazos de conservación. Cruza lo dicho en dominios distintos cuando se refiera a la misma actividad —la finalidad puede venir del dominio 2 y su plazo de conservación del 9— y cita siempre la frase del dominio de donde sacaste cada campo.
 
-Cuando haya fichas de proceso levantadas por el equipo consultor, son la fuente más fiable: describen cómo opera el proceso de verdad. Un comentario del cuestionario es una impresión de una persona; una ficha es trabajo de campo. Si se contradicen, quédate con la ficha y dilo en la cita.
+Cuando haya fichas de proceso levantadas por el equipo consultor, son la fuente más fiable: describen cómo opera el proceso de verdad. Un comentario del cuestionario es una impresión de una persona; una ficha es trabajo de campo. Si se contradicen, quédate con la ficha y dilo en la cita.`;
 
-REGLAS QUE NO PUEDES ROMPER:
+function instrucciones(modo: ModoAnalisis): string {
+  if (modo === "completar") {
+    return `${COMUN}
 
-1. NO INVENTES. Solo puedes afirmar lo que el material dice. Si la finalidad, la base legal o el plazo de conservación no aparecen, OMITE ese campo. Un campo omitido es correcto; un campo inventado hace que un registro legal diga algo falso.
-2. CITA SIEMPRE. Cada campo que propongas debe venir con la frase textual del material de donde lo sacaste, en "cita". Si no puedes citar, no lo propongas.
-3. NO DEDUZCAS BASE LEGAL. La base legal solo se propone si el material la menciona explícitamente (un contrato, un consentimiento firmado, una obligación legal). Deducirla del contexto es una opinión jurídica y no te corresponde.
-4. Si el material dice que algo NO existe o NO está controlado, eso NO es una actividad de tratamiento: es una brecha. No la registres como actividad.
+Tu tarea AHORA NO es proponer actividades nuevas. El registro ya existe: se te entrega la lista de sus filas con los campos que a cada una le faltan.
 
-Devuelve SOLO un JSON válido con esta forma, sin texto alrededor ni markdown:
+Para cada fila, busca en el material SOLO los campos marcados como faltantes y propónlos. Devuelve el "codigo" de la fila tal cual viene y su "nombre" tal cual viene: es lo que permite escribir la propuesta en la fila correcta.
 
-{"actividades":[{"nombre":"...","area":"... o null","datosSensibles":false,"transferenciaInternacional":false,"finalidad":{"valor":"...","cita":"..."},"categoriasTitulares":{"valor":"...","cita":"..."},"categoriasDatos":{"valor":"...","cita":"..."},"baseLegal":{"valor":"...","cita":"..."},"origen":{"valor":"...","cita":"..."},"destinatarios":{"valor":"...","cita":"..."},"encargados":{"valor":"...","cita":"..."},"sistemas":{"valor":"...","cita":"..."},"plazoConservacion":{"valor":"...","cita":"..."},"medidasSeguridad":{"valor":"...","cita":"..."}}]}
+Si de una fila no encuentras nada sustentable, no la incluyas en la respuesta. Es un resultado válido y esperable: significa que ese campo todavía no está declarado en ninguna parte, y por eso hay que preguntarlo.
 
-Omite por completo las claves de los campos que no puedas sustentar. "datosSensibles" y "transferenciaInternacional" son obligatorias: ponlas en false salvo que el material diga lo contrario.`;
+${REGLAS}`;
+  }
+
+  return `${COMUN}
+
+Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES DE TRATAMIENTO que se desprenden de él.
+
+${REGLAS}`;
+}
 
 function limpiarJson(texto: string): string {
   // El modelo a veces envuelve el JSON en un bloque de código pese a pedírselo.
@@ -191,15 +280,19 @@ function interpretar(texto: string): ActividadPropuesta[] {
 }
 
 /**
- * Analiza el material del dominio indicado y propone actividades de tratamiento.
+ * Analiza el material del cliente y propone campos del RAT.
  *
  * Sale información de la empresa hacia el proveedor del modelo. La decisión de habilitarlo
  * es contractual y la toma Procesos360 con su cliente; aquí solo se ejecuta.
  */
 export async function proponerActividades(
-  diagnosticoId: string
+  diagnosticoId: string,
+  modo: ModoAnalisis = "nuevas"
 ): Promise<ResultadoExtraccion> {
-  const vacio = { actividades: [], fuentes: { documentos: 0, comentarios: 0, fichas: 0 } };
+  const vacio = {
+    actividades: [],
+    fuentes: { documentos: 0, comentarios: 0, fichas: 0, inventario: 0 },
+  };
   if (!process.env.GEMINI_API_KEY) {
     return { ok: false, error: "El análisis no está configurado en el servidor.", ...vacio };
   }
@@ -210,14 +303,22 @@ export async function proponerActividades(
   });
   if (!diag) return { ok: false, error: "Diagnóstico no encontrado.", ...vacio };
 
-  const [comentarios, documentos, fichas] = await Promise.all([
+  const [comentarios, documentos, fichas, vocabulario, porCompletar] = await Promise.all([
     comentariosDelDiagnostico(diagnosticoId),
     documentosDelDiagnostico(diagnosticoId),
     fichasDeLaEmpresa(diag.empresaId),
+    vocabularioDeLaEmpresa(diag.empresaId),
+    modo === "completar" ? filasPorCompletar(diag.empresaId) : Promise.resolve([]),
   ]);
 
-  // Solo PDF e imágenes: los formatos de Office no los ingiere la API, y mandarlos
-  // produce un error opaco en vez de un aviso entendible.
+  if (modo === "completar" && porCompletar.length === 0) {
+    return {
+      ok: false,
+      error: "No hay filas con campos pendientes: el registro ya tiene todo lo que el análisis podría completar.",
+      ...vacio,
+    };
+  }
+
   // PDF e imágenes viajan tal cual; Word y Excel se convierten a texto antes de salir.
   const seLee = (m: string | null, tam: number | null) =>
     (m === "application/pdf" || Boolean(m?.startsWith("image/")) || esOfficeLegible(m)) &&
@@ -275,6 +376,45 @@ export async function proponerActividades(
 
   const partes: Record<string, unknown>[] = [];
 
+  if (vocabulario.inventario.length > 0 || vocabulario.procesos.length > 0) {
+    const bloques: string[] = [];
+    if (vocabulario.inventario.length > 0) {
+      bloques.push(
+        "Inventario de datos personales de la empresa (código | dato | categoría | clasificación):\n" +
+          vocabulario.inventario
+            .map((d) => `${d.codigo} | ${d.nombre} | ${d.categoria ?? ""} | ${d.clasificacion ?? ""}`)
+            .join("\n")
+      );
+    }
+    if (vocabulario.procesos.length > 0) {
+      bloques.push(
+        "Mapa de procesos de la empresa (código | proceso):\n" +
+          vocabulario.procesos.map((p) => `${p.codigo} | ${p.nombre}`).join("\n")
+      );
+    }
+    partes.push({
+      text:
+        "MATERIAL 0 — VOCABULARIO DE LA EMPRESA. Estos códigos ya existen y son los únicos que puedes citar en \"idsInventario\" y \"procesos\".\n\n" +
+        bloques.join("\n\n"),
+    });
+  }
+
+  if (modo === "completar") {
+    partes.push({
+      text:
+        "MATERIAL 0B — FILAS DEL REGISTRO QUE HAY QUE COMPLETAR. Para cada una, busca en el material solo los campos listados como faltantes.\n\n" +
+        porCompletar
+          .map((f) => {
+            const area = f.areaPropuesta ?? f.area?.nombre ?? "sin área";
+            const contexto = f.finalidad ? `\n  Finalidad ya registrada: ${f.finalidad}` : "";
+            return `[${f.codigo ?? "sin código"}] ${f.nombre} — área: ${area}${contexto}\n  Le faltan: ${f.faltan
+              .map((c) => c.clave)
+              .join(", ")}`;
+          })
+          .join("\n\n"),
+    });
+  }
+
   if (comentarios.length > 0) {
     partes.push({
       text:
@@ -288,8 +428,7 @@ export async function proponerActividades(
       const encabezado =
         `MATERIAL 2 — Ficha de proceso levantada por el equipo consultor: "${f.nombre}"` +
         (f.area ? ` · área ${f.area.nombre}` : "") +
-        (f.descripcion ? `
-${f.descripcion}` : "");
+        (f.descripcion ? `\n${f.descripcion}` : "");
       partes.push(...(await comoPartes(encabezado, f.archivoPath!, f.mimeType)));
     } catch {
       // Una ficha ilegible no detiene el análisis del resto.
@@ -310,10 +449,6 @@ ${f.descripcion}` : "");
     }
   }
 
-  partes.push({
-    text: `Campos posibles del RAT: ${CAMPOS_RAT.map((c) => `${c.clave} (${c.etiqueta})`).join(", ")}.`,
-  });
-
   let respuesta: Response;
   try {
     respuesta = await fetch(
@@ -325,7 +460,7 @@ ${f.descripcion}` : "");
           "x-goog-api-key": process.env.GEMINI_API_KEY,
         },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: INSTRUCCIONES }] },
+          systemInstruction: { parts: [{ text: instrucciones(modo) }] },
           contents: [{ role: "user", parts: partes }],
           generationConfig: {
             // Temperatura baja: aquí no se quiere creatividad, se quiere fidelidad.
@@ -334,7 +469,7 @@ ${f.descripcion}` : "");
             // con el material de los diez dominios se lo comía entero y el JSON llegaba
             // cortado a la mitad. Se apaga y se sube el techo.
             thinkingConfig: { thinkingBudget: 0 },
-            maxOutputTokens: 16384,
+            maxOutputTokens: 32768,
             responseMimeType: "application/json",
           },
         }),
@@ -361,6 +496,7 @@ ${f.descripcion}` : "");
     return { ok: false, error: "El análisis devolvió una respuesta que no se pudo leer.", ...vacio };
   }
 
+  const codigosValidos = new Set(vocabulario.inventario.map((d) => d.codigo));
   const actividades = crudas
     // Sin nombre no es una actividad, y sin cita no es verificable: ambas se descartan.
     .filter((a) => a?.nombre?.trim())
@@ -369,7 +505,11 @@ ${f.descripcion}` : "");
       nombre: a.nombre.trim(),
       datosSensibles: Boolean(a.datosSensibles),
       transferenciaInternacional: Boolean(a.transferenciaInternacional),
-    }));
+      ...(a.idsInventario ? { idsInventario: depurarCodigos(a.idsInventario, codigosValidos) } : {}),
+    }))
+    // Un idsInventario que quedó sin ningún código válido se elimina, en vez de escribir
+    // una celda vacía que igual pisaría el hueco.
+    .map((a) => (a.idsInventario && !a.idsInventario.valor ? { ...a, idsInventario: undefined } : a));
 
   return {
     ok: true,
@@ -378,6 +518,21 @@ ${f.descripcion}` : "");
       documentos: legibles.length,
       comentarios: comentarios.length,
       fichas: fichasLegibles.length,
+      inventario: vocabulario.inventario.length,
     },
   };
+}
+
+/**
+ * Deja solo los códigos del inventario que existen de verdad.
+ *
+ * La instrucción de no inventar códigos no basta: un modelo que ve DP-007 y DP-008 propone
+ * DP-009 con toda naturalidad. Un código inventado es peor que ninguno, porque parece
+ * trazabilidad y apunta a nada.
+ */
+function depurarCodigos(campo: CampoPropuesto, validos: Set<string>): CampoPropuesto {
+  const codigos = (campo.valor.match(/[A-Z]{2,4}-\d+/gi) ?? [])
+    .map((c) => c.toUpperCase())
+    .filter((c) => validos.has(c));
+  return { ...campo, valor: [...new Set(codigos)].join(", ") };
 }

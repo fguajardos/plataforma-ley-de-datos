@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge, Input, Textarea, Label, Select } from "@/components/ui";
-import { CAMPOS_RAT, faltantesDe, type TratamientoPlano } from "@/lib/rat";
+import { CAMPOS_RAT, ESTADOS_RAT, faltantesDe, type TratamientoPlano } from "@/lib/rat";
 import {
   guardarTratamiento,
   crearTratamiento,
@@ -11,11 +11,9 @@ import {
   generarBorradorRat,
 } from "./actions";
 
-const ESTADOS: Record<string, { label: string; color: "slate" | "yellow" | "green" }> = {
-  BORRADOR: { label: "Borrador", color: "slate" },
-  EN_REVISION: { label: "Por revisar", color: "yellow" },
-  VIGENTE: { label: "Vigente", color: "green" },
-};
+const ESTADOS = Object.fromEntries(
+  ESTADOS_RAT.map((e) => [e.valor, { label: e.etiqueta, color: e.color }])
+) as Record<string, { label: string; color: "slate" | "blue" | "yellow" | "orange" | "green" }>;
 
 type Area = { id: string; nombre: string };
 
@@ -96,6 +94,11 @@ export function RatEditor({
                 >
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-2">
+                      {t.codigo && (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-500">
+                          {t.codigo}
+                        </span>
+                      )}
                       <span className="text-sm font-medium text-slate-800">{t.nombre}</span>
                       <Badge color={est.color}>{est.label}</Badge>
                       {t.datosSensibles && <Badge color="orange">Datos sensibles</Badge>}
@@ -153,34 +156,38 @@ function Formulario({
   onGuardar: (d: Datos) => void;
   onEliminar: () => void;
 }) {
-  const [f, setF] = useState<Datos>({
-    id: t.id,
-    nombre: t.nombre,
-    areaId: t.areaId ?? "",
-    finalidad: t.finalidad ?? "",
-    categoriasTitulares: t.categoriasTitulares ?? "",
-    categoriasDatos: t.categoriasDatos ?? "",
-    datosSensibles: t.datosSensibles,
-    baseLegal: t.baseLegal ?? "",
-    origen: t.origen ?? "",
-    destinatarios: t.destinatarios ?? "",
-    encargados: t.encargados ?? "",
-    sistemas: t.sistemas ?? "",
-    transferenciaInternacional: t.transferenciaInternacional,
-    paisesDestino: t.paisesDestino ?? "",
-    garantiasTransferencia: t.garantiasTransferencia ?? "",
-    plazoConservacion: t.plazoConservacion ?? "",
-    medidasSeguridad: t.medidasSeguridad ?? "",
-    estado: t.estado as Datos["estado"],
-  });
+  // Se arma de la lista de campos: agregar una columna al registro no debería obligar a
+  // tocar el formulario, y cuando obligaba, se olvidaba.
+  const [f, setF] = useState<Datos>(
+    () =>
+      ({
+        id: t.id,
+        codigo: t.codigo ?? "",
+        areaId: t.areaId ?? "",
+        datosSensibles: t.datosSensibles,
+        transferenciaInternacional: t.transferenciaInternacional,
+        estado: t.estado,
+        ...Object.fromEntries(CAMPOS_RAT.map((c) => [c.clave, t[c.clave] ?? ""])),
+      }) as Datos
+  );
 
   const set = (k: keyof Datos, v: string | boolean) => setF((p) => ({ ...p, [k]: v }));
 
   return (
     <div className="border-t border-slate-100 px-5 py-4">
       <div className="mb-4 flex flex-wrap items-end gap-4">
+        <div className="w-28">
+          <Label htmlFor={`codigo-${t.id}`}>ID</Label>
+          <Input
+            id={`codigo-${t.id}`}
+            value={String(f.codigo ?? "")}
+            disabled={!puedeEditar}
+            placeholder="RAT-001"
+            onChange={(e) => set("codigo", e.target.value)}
+          />
+        </div>
         <div className="min-w-[220px] flex-1">
-          <Label htmlFor={`area-${t.id}`}>Área responsable</Label>
+          <Label htmlFor={`area-${t.id}`}>Área del levantamiento</Label>
           <Select
             id={`area-${t.id}`}
             value={f.areaId}
@@ -194,18 +201,24 @@ function Formulario({
               </option>
             ))}
           </Select>
+          <p className="mt-1 text-xs text-slate-500">
+            Vincula la actividad con el área que respondió el cuestionario. El área que se
+            propone como responsable en la matriz se escribe más abajo.
+          </p>
         </div>
-        <div className="min-w-[180px]">
-          <Label htmlFor={`estado-${t.id}`}>Estado</Label>
+        <div className="min-w-[200px]">
+          <Label htmlFor={`estado-${t.id}`}>Estado de validación</Label>
           <Select
             id={`estado-${t.id}`}
             value={f.estado}
             disabled={!puedeEditar}
             onChange={(e) => set("estado", e.target.value)}
           >
-            <option value="BORRADOR">Borrador</option>
-            <option value="EN_REVISION">Por revisar</option>
-            <option value="VIGENTE">Vigente</option>
+            {ESTADOS_RAT.map((e) => (
+              <option key={e.valor} value={e.valor}>
+                {e.etiqueta}
+              </option>
+            ))}
           </Select>
         </div>
         <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
@@ -255,17 +268,35 @@ function Formulario({
                   onChange={(e) => set(c.clave as keyof Datos, e.target.value)}
                 />
               ) : (
-                <Input
-                  id={`${c.clave}-${t.id}`}
-                  value={valor}
-                  disabled={!puedeEditar}
-                  placeholder={c.ejemplo}
-                  onChange={(e) => set(c.clave as keyof Datos, e.target.value)}
-                />
+                <>
+                  <Input
+                    id={`${c.clave}-${t.id}`}
+                    value={valor}
+                    disabled={!puedeEditar}
+                    placeholder={c.ejemplo}
+                    // Sugerencias abiertas y no un desplegable: el vocabulario acordado
+                    // queda a un clic, pero una actividad que se apoya en dos bases de
+                    // licitud puede escribirlas las dos.
+                    list={c.opciones ? `${c.clave}-opciones` : undefined}
+                    onChange={(e) => set(c.clave as keyof Datos, e.target.value)}
+                  />
+                  {c.opciones && (
+                    <datalist id={`${c.clave}-opciones`}>
+                      {c.opciones.map((o) => (
+                        <option key={o} value={o} />
+                      ))}
+                    </datalist>
+                  )}
+                </>
               )}
               {vacioObligatorio && (
                 <p className="mt-1 text-xs text-orange-600">
                   Obligatorio: sin esto la actividad no queda documentada.
+                </p>
+              )}
+              {c.evidencia && (
+                <p className="mt-1 text-xs text-slate-400">
+                  Lo acredita: {c.evidencia}
                 </p>
               )}
             </div>
