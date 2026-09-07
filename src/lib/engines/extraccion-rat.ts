@@ -68,6 +68,14 @@ export type ResultadoExtraccion = {
   actividades: ActividadPropuesta[];
   /** El modelo se quedó sin espacio: lo que viene es parte de la respuesta, no toda. */
   parcial?: boolean;
+  /**
+   * Archivos que se eligieron para analizar y no aportaron nada.
+   *
+   * Antes se descartaban en silencio: el archivo se contaba como leído y nadie sabía que
+   * no había entrado. Un Excel corrupto, uno con contraseña o uno al que le cambiaron la
+   * extensión a mano se ven idénticos a uno bueno hasta que se intenta abrirlo.
+   */
+  problemas: { nombre: string; motivo: string }[];
   fuentes: {
     documentos: number;
     comentarios: number;
@@ -358,6 +366,7 @@ export async function proponerActividades(
 ): Promise<ResultadoExtraccion> {
   const vacio = {
     actividades: [],
+    problemas: [],
     fuentes: { documentos: 0, comentarios: 0, fichas: 0, inventario: 0, sinCupo: 0 },
   };
   if (!process.env.GEMINI_API_KEY) {
@@ -398,22 +407,30 @@ export async function proponerActividades(
    * escaneados, que no tienen texto que sacar—.
    */
   let presupuesto = PRESUPUESTO_TEXTO;
+  const problemas: { nombre: string; motivo: string }[] = [];
 
   async function comoPartes(
+    nombre: string,
     encabezado: string,
     ruta: string,
     mimeType: string | null
   ): Promise<Record<string, unknown>[]> {
     const url = await urlFirmadaEvidencia(ruta, 300);
     const res = await fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      problemas.push({ nombre, motivo: "no se pudo descargar el archivo" });
+      return [];
+    }
     const buf = Buffer.from(await res.arrayBuffer());
 
     if (esOfficeLegible(mimeType)) {
       // Lo que consume un documento se lo quita al siguiente: así cuatro fichas grandes
       // no hacen una consulta desmedida, y la primera no se lleva todo el presupuesto.
       const ex = await extraerTexto(buf, mimeType, Math.max(4_000, presupuesto));
-      if (!ex.ok) return [];
+      if (!ex.ok) {
+        problemas.push({ nombre, motivo: ex.motivo });
+        return [];
+      }
       presupuesto = Math.max(0, presupuesto - ex.texto.length);
       return [
         {
@@ -524,9 +541,10 @@ export async function proponerActividades(
         `MATERIAL 2 — Ficha de proceso levantada por el equipo consultor: "${f.nombre}"` +
         (f.area ? ` · área ${f.area.nombre}` : "") +
         (f.descripcion ? `\n${f.descripcion}` : "");
-      partes.push(...(await comoPartes(encabezado, f.archivoPath!, f.mimeType)));
-    } catch {
-      // Una ficha ilegible no detiene el análisis del resto.
+      partes.push(...(await comoPartes(f.nombre, encabezado, f.archivoPath!, f.mimeType)));
+    } catch (e) {
+      // Una ficha ilegible no detiene el análisis del resto, pero sí se dice cuál fue.
+      problemas.push({ nombre: f.nombre, motivo: (e as Error).message.slice(0, 90) });
     }
   }
 
@@ -534,13 +552,15 @@ export async function proponerActividades(
     try {
       partes.push(
         ...(await comoPartes(
+          d.nombre,
           `MATERIAL 3 — Documento entregado por la empresa: "${d.nombre}"`,
           d.archivoPath!,
           d.mimeType
         ))
       );
-    } catch {
+    } catch (e) {
       // Un documento que no se puede leer no detiene el análisis del resto.
+      problemas.push({ nombre: d.nombre, motivo: (e as Error).message.slice(0, 90) });
     }
   }
 
@@ -609,7 +629,7 @@ export async function proponerActividades(
     if (completa) {
       // Respondió bien y no encontró nada. Es un resultado válido, no una falla: quien
       // llama lo explica con sus palabras.
-      return { ok: true, actividades: [], fuentes: fuentesLeidas() };
+      return { ok: true, actividades: [], problemas, fuentes: fuentesLeidas() };
     }
     console.error(
       `[rat] no se pudo interpretar · finishReason=${motivoCorte} · ${texto.length} caracteres · inicio: ${texto.slice(0, 200)}`
@@ -642,7 +662,17 @@ export async function proponerActividades(
     // una celda vacía que igual pisaría el hueco.
     .map((a) => (a.idsInventario && !a.idsInventario.valor ? { ...a, idsInventario: undefined } : a));
 
-  return { ok: true, actividades, parcial: seQuedoSinEspacio, fuentes: fuentesLeidas() };
+  if (problemas.length > 0) {
+    console.error(`[rat] no aportaron: ${problemas.map((p) => `${p.nombre} (${p.motivo})`).join(" · ")}`);
+  }
+
+  return {
+    ok: true,
+    actividades,
+    parcial: seQuedoSinEspacio,
+    problemas,
+    fuentes: fuentesLeidas(),
+  };
 
   function fuentesLeidas() {
     return {

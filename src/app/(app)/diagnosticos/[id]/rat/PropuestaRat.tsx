@@ -47,6 +47,7 @@ export function PropuestaRat({
   const [elegidas, setElegidas] = useState<Set<number>>(new Set());
   const [fuentes, setFuentes] = useState<Fuentes | null>(null);
   const [parcial, setParcial] = useState(false);
+  const [problemas, setProblemas] = useState<{ nombre: string; motivo: string }[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const completando = modo === "completar";
@@ -57,6 +58,9 @@ export function PropuestaRat({
     setModo(m);
     startTransition(async () => {
       const res = await proponerDesdeElLevantamiento(diagnosticoId, m);
+      // Los archivos que fallaron importan igual cuando el análisis no encontró nada:
+      // muchas veces son justamente la razón por la que no encontró nada.
+      setProblemas(res.problemas ?? []);
       if (!res.ok) {
         setMsg({ ok: false, texto: res.error ?? "No se pudo analizar." });
         return;
@@ -131,6 +135,23 @@ export function PropuestaRat({
 
       {msg && (
         <p className={`mt-3 text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.texto}</p>
+      )}
+
+      {problemas.length > 0 && (
+        <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+          <p className="font-medium">
+            {problemas.length === 1
+              ? "Un archivo no se pudo leer y no aportó nada:"
+              : `${problemas.length} archivos no se pudieron leer y no aportaron nada:`}
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {problemas.map((p) => (
+              <li key={p.nombre}>
+                <strong>{p.nombre}</strong> — {p.motivo}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {propuestas && (

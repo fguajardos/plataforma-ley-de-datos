@@ -227,8 +227,10 @@ export type PropuestaResult = {
   error?: string;
   modo?: ModoAnalisis;
   actividades?: ActividadPropuesta[];
-  /** El analisis se quedo sin espacio: lo que llega es parte de la respuesta. */
+  /** El análisis se quedó sin espacio: lo que llega es parte de la respuesta. */
   parcial?: boolean;
+  /** Archivos que se intentaron leer y no aportaron nada, con el motivo. */
+  problemas?: { nombre: string; motivo: string }[];
   fuentes?: {
     documentos: number;
     comentarios: number;
@@ -262,13 +264,21 @@ export async function proponerDesdeElLevantamiento(
   if (r.actividades.length === 0) {
     return {
       ok: false,
+      problemas: r.problemas,
       error:
         modo === "completar"
           ? "El análisis no encontró en el material nada que sustente los campos que faltan. Es el resultado esperado cuando lo que falta —plazos, encargados, medidas— todavía no está declarado en ninguna parte."
           : "El análisis no encontró actividades de tratamiento sustentables en el material. Suele pasar cuando lo entregado describe carencias en vez de tratamientos.",
     };
   }
-  return { ok: true, modo, actividades: r.actividades, parcial: r.parcial, fuentes: r.fuentes };
+  return {
+    ok: true,
+    modo,
+    actividades: r.actividades,
+    parcial: r.parcial,
+    problemas: r.problemas,
+    fuentes: r.fuentes,
+  };
 }
 
 // El análisis manda claves libres: se validan por forma y después se filtran contra la
