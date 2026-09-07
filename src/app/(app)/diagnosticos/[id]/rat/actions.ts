@@ -5,14 +5,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, sinAccesoAEmpresa } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
-import { CAMPOS_ANALIZABLES, CODIGOS_ESTADO_RAT, type CampoClave } from "@/lib/rat";
+import { CAMPOS_ANALIZABLES, CODIGOS_ESTADO_RAT, claveNombre, type CampoClave } from "@/lib/rat";
 import {
   proponerActividades,
   type ActividadPropuesta,
   type ModoAnalisis,
 } from "@/lib/engines/extraccion-rat";
 
-export type RatResult = { ok: boolean; error?: string; creados?: number };
+export type RatResult = { ok: boolean; error?: string; creados?: number; omitidos?: number };
 
 /**
  * El RAT lo llena la empresa; el consultor lo revisa. El Responsable de Dominio queda
@@ -190,13 +190,11 @@ export async function crearTratamiento(empresaId: string): Promise<RatResult> {
   const { error } = await permiso(empresaId);
   if (error) return { ok: false, error };
 
+  // El código va en el nombre: dos filas llamadas "Nueva actividad de tratamiento" son
+  // indistinguibles en la lista, y quien agregó dos por error no sabe cuál abrir.
+  const codigo = correlativo(await siguienteCorrelativo(empresaId));
   await prisma.tratamientoDato.create({
-    data: {
-      empresaId,
-      codigo: correlativo(await siguienteCorrelativo(empresaId)),
-      nombre: "Nueva actividad de tratamiento",
-      estado: "BORRADOR",
-    },
+    data: { empresaId, codigo, nombre: `Nueva actividad ${codigo}`, estado: "BORRADOR" },
   });
   revalidatePath("/diagnosticos", "layout");
   return { ok: true, creados: 1 };
@@ -348,10 +346,33 @@ export async function aceptarPropuesta(
     select: { id: true, nombre: true },
   });
   const porNombre = new Map(areas.map((a) => [a.nombre.toLowerCase(), a.id]));
-  const desde = await siguienteCorrelativo(empresaId);
 
+  // Red de seguridad contra las repeticiones. Al análisis ya se le dice qué hay en el
+  // registro, pero la instrucción es una petición y esto es una garantía: el registro es
+  // un documento legal, y dos filas para el mismo tratamiento se leen como dos
+  // tratamientos. Vale también dentro de la misma tanda, donde el modelo a veces parte
+  // una actividad en dos con nombres parecidos.
+  const yaExisten = new Set(
+    (
+      await prisma.tratamientoDato.findMany({ where: { empresaId }, select: { nombre: true } })
+    ).map((t) => claveNombre(t.nombre))
+  );
+
+  const nuevas = actividades.filter((a) => {
+    const clave = claveNombre(a.nombre);
+    if (yaExisten.has(clave)) return false;
+    yaExisten.add(clave);
+    return true;
+  });
+  const omitidos = actividades.length - nuevas.length;
+
+  if (nuevas.length === 0) {
+    return { ok: false, error: "Todas esas actividades ya están en el registro.", omitidos };
+  }
+
+  const desde = await siguienteCorrelativo(empresaId);
   await prisma.tratamientoDato.createMany({
-    data: actividades.map((a, i) => ({
+    data: nuevas.map((a, i) => ({
       empresaId,
       codigo: correlativo(desde + i),
       areaId: a.area ? (porNombre.get(a.area.toLowerCase()) ?? null) : null,
@@ -368,7 +389,7 @@ export async function aceptarPropuesta(
   });
 
   revalidatePath("/diagnosticos", "layout");
-  return { ok: true, creados: actividades.length };
+  return { ok: true, creados: nuevas.length, omitidos };
 }
 
 /**

@@ -432,6 +432,22 @@ export const CAMPOS_RAT: CampoRat[] = [
 /** Los campos que el análisis puede proponer: los que salen del material del cliente. */
 export const CAMPOS_ANALIZABLES = CAMPOS_RAT.filter((c) => !c.soloPersona && c.clave !== "nombre");
 
+/**
+ * La forma comparable de un nombre de actividad.
+ *
+ * Sirve para no registrar dos veces lo mismo. Sin tildes, sin mayúsculas y sin puntuación,
+ * porque "Gestión de Leads" y "gestion de leads." son la misma actividad y el registro no
+ * puede tener las dos: quien lo audite vería dos tratamientos donde hay uno.
+ */
+export function claveNombre(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 const OBLIGATORIOS = CAMPOS_RAT.filter((c) => c.obligatorio);
 
 /** Campos obligatorios que esta actividad todavía no tiene. */

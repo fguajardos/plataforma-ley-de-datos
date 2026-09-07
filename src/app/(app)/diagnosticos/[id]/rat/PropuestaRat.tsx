@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge } from "@/components/ui";
-import { CAMPOS_ANALIZABLES } from "@/lib/rat";
+import { CAMPOS_ANALIZABLES, claveNombre } from "@/lib/rat";
 import type { ActividadPropuesta, ModoAnalisis } from "@/lib/engines/extraccion-rat";
 import {
   proponerDesdeElLevantamiento,
@@ -34,12 +34,16 @@ type Fuentes = {
 export function PropuestaRat({
   diagnosticoId,
   empresaId,
-  hayRegistro,
+  yaRegistradas,
 }: {
   diagnosticoId: string;
   empresaId: string;
-  hayRegistro: boolean;
+  /** Nombres de lo que ya está en el registro, para no volver a agregarlo. */
+  yaRegistradas: string[];
 }) {
+  const hayRegistro = yaRegistradas.length > 0;
+  const existentes = new Set(yaRegistradas.map(claveNombre));
+  const repetida = (nombre: string) => existentes.has(claveNombre(nombre));
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [modo, setModo] = useState<ModoAnalisis>("nuevas");
@@ -68,7 +72,15 @@ export function PropuestaRat({
       setPropuestas(res.actividades ?? []);
       setFuentes(res.fuentes ?? null);
       setParcial(Boolean(res.parcial));
-      setElegidas(new Set((res.actividades ?? []).map((_, i) => i)));
+      // Lo que ya está en el registro llega desmarcado: se muestra para que se vea que el
+      // análisis lo encontró, pero agregarlo otra vez es lo que hay que evitar.
+      setElegidas(
+        new Set(
+          (res.actividades ?? [])
+            .map((a, i) => (m === "completar" || !repetida(a.nombre) ? i : -1))
+            .filter((i) => i >= 0)
+        )
+      );
     });
   }
 
@@ -83,9 +95,13 @@ export function PropuestaRat({
       if (res.ok) {
         setMsg({
           ok: true,
-          texto: completando
-            ? `${res.creados} ${res.creados === 1 ? "actividad completada" : "actividades completadas"} con lo que el material sustentaba.`
-            : `${res.creados} ${res.creados === 1 ? "actividad agregada" : "actividades agregadas"} al registro, como borrador.`,
+          texto:
+            (completando
+              ? `${res.creados} ${res.creados === 1 ? "actividad completada" : "actividades completadas"} con lo que el material sustentaba.`
+              : `${res.creados} ${res.creados === 1 ? "actividad agregada" : "actividades agregadas"} al registro, como borrador.`) +
+            (res.omitidos
+              ? ` Se omitieron ${res.omitidos} que ya estaban en el registro.`
+              : ""),
         });
         setPropuestas(null);
         router.refresh();
@@ -231,6 +247,11 @@ export function PropuestaRat({
                         </span>
                       )}
                       <span className="text-sm font-semibold text-slate-800">{a.nombre}</span>
+                      {!completando && repetida(a.nombre) && (
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                          ya está en el registro
+                        </span>
+                      )}
                       {a.area && <span className="text-xs text-slate-500">{a.area}</span>}
                       {a.datosSensibles && <Badge color="orange">Datos sensibles</Badge>}
                       {a.transferenciaInternacional && <Badge color="blue">Sale del país</Badge>}

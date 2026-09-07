@@ -192,7 +192,7 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
         <PropuestaRat
           diagnosticoId={id}
           empresaId={diag.empresaId}
-          hayRegistro={rat.tratamientos.length > 0}
+          yaRegistradas={rat.tratamientos.map((t) => t.nombre)}
         />
       )}
 

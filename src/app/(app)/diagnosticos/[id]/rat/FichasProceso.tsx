@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { MAX_EVIDENCIA_MB, MAX_EVIDENCIA_BYTES, MAX_FICHAS_LOTE } from "@/lib/constants";
 import { analisisLoLee, motivoNoLegible } from "@/lib/documentos";
+import { claveNombre } from "@/lib/rat";
 import { prepararSubidaFichas, registrarFichas, eliminarFicha } from "./fichas-actions";
 
 export type FichaVM = {
@@ -239,6 +240,9 @@ export function FichasProceso({
 
   const porSubir = cola.filter((f) => f.estado !== "lista").length;
   const sinLeer = cola.filter((f) => !analisisLoLee(f.archivo.type)).length;
+  // Subir dos veces la misma ficha no se bloquea —a veces es la versión corregida— pero
+  // sí se avisa: el análisis lee las dos y propone la misma actividad dos veces.
+  const cargadas = new Set(fichas.map((f) => claveNombre(f.nombre)));
 
   return (
     <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
@@ -331,6 +335,12 @@ export function FichasProceso({
                           <span className="w-full text-xs text-orange-700">
                             El análisis no va a poder leerlo: {motivoFormato}. Se guarda igual
                             en el expediente.
+                          </span>
+                        )}
+                        {!f.motivo && !motivoFormato && cargadas.has(claveNombre(f.nombre)) && (
+                          <span className="w-full text-xs text-slate-500">
+                            Ya hay una ficha con este nombre. Si es la versión corregida,
+                            conviene borrar la anterior: el análisis leería las dos.
                           </span>
                         )}
                       </li>

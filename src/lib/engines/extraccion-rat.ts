@@ -189,6 +189,27 @@ async function vocabularioDeLaEmpresa(empresaId: string) {
   return { inventario, procesos };
 }
 
+/**
+ * Lo que ya está en el registro, para no volver a proponerlo.
+ *
+ * Sin esta lista, cada pasada vuelve a leer TODAS las fichas —también las cinco que ya se
+ * analizaron la semana pasada— y propone de nuevo las mismas actividades. Quien sube dos
+ * fichas nuevas y aprieta analizar termina con el registro duplicado, y las copias no son
+ * idénticas: el modelo llama "Cuentas por Pagar" a lo que antes llamó "Recepción y
+ * validación de documentos de cobro", así que ni siquiera se ven como repetidas.
+ *
+ * Va la finalidad además del nombre porque es lo que permite reconocer la misma actividad
+ * bajo otro título.
+ */
+async function yaRegistradas(empresaId: string) {
+  return prisma.tratamientoDato.findMany({
+    where: { empresaId },
+    select: { codigo: true, nombre: true, finalidad: true },
+    orderBy: [{ codigo: "asc" }, { nombre: "asc" }],
+    take: 200,
+  });
+}
+
 /** Las filas del registro que todavía tienen huecos, con el detalle de cuáles. */
 async function filasPorCompletar(empresaId: string) {
   const filas = await prisma.tratamientoDato.findMany({
@@ -269,6 +290,8 @@ ${REGLAS}`;
   return `${COMUN}
 
 Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES DE TRATAMIENTO que se desprenden de él.
+
+Si se te entrega una lista de actividades ya registradas, NO propongas ninguna que ya esté ahí, ni con otro nombre ni partida en dos. El material se relee entero cada vez —incluidas las fichas de siempre— y repetir lo que ya existe llena el registro de copias que despues hay que borrar a mano. Ante la duda de si una actividad es la misma, omitela.
 
 ${REGLAS}`;
 }
@@ -379,13 +402,15 @@ export async function proponerActividades(
   });
   if (!diag) return { ok: false, error: "Diagnóstico no encontrado.", ...vacio };
 
-  const [comentarios, documentos, fichas, vocabulario, porCompletar] = await Promise.all([
-    comentariosDelDiagnostico(diagnosticoId),
-    documentosDelDiagnostico(diagnosticoId),
-    fichasDeLaEmpresa(diag.empresaId),
-    vocabularioDeLaEmpresa(diag.empresaId),
-    modo === "completar" ? filasPorCompletar(diag.empresaId) : Promise.resolve([]),
-  ]);
+  const [comentarios, documentos, fichas, vocabulario, porCompletar, registradas] =
+    await Promise.all([
+      comentariosDelDiagnostico(diagnosticoId),
+      documentosDelDiagnostico(diagnosticoId),
+      fichasDeLaEmpresa(diag.empresaId),
+      vocabularioDeLaEmpresa(diag.empresaId),
+      modo === "completar" ? filasPorCompletar(diag.empresaId) : Promise.resolve([]),
+      modo === "nuevas" ? yaRegistradas(diag.empresaId) : Promise.resolve([]),
+    ]);
 
   if (modo === "completar" && porCompletar.length === 0) {
     return {
@@ -508,6 +533,22 @@ export async function proponerActividades(
       text:
         "MATERIAL 0 — VOCABULARIO DE LA EMPRESA. Estos códigos ya existen y son los únicos que puedes citar en \"idsInventario\" y \"procesos\".\n\n" +
         bloques.join("\n\n"),
+    });
+  }
+
+  if (modo === "nuevas" && registradas.length > 0) {
+    partes.push({
+      text:
+        "MATERIAL 0B — ACTIVIDADES QUE YA ESTÁN EN EL REGISTRO. NO las vuelvas a proponer, " +
+        "ni con otro nombre. Si el material que leas se refiere a una de estas, omítela: " +
+        "completar sus campos es otra tarea.\n\n" +
+        registradas
+          .map(
+            (r) =>
+              `[${r.codigo ?? "sin código"}] ${r.nombre}` +
+              (r.finalidad ? `\n  Finalidad: ${r.finalidad.slice(0, 200)}` : "")
+          )
+          .join("\n"),
     });
   }
 
