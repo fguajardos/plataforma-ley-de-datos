@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { EvidenciasPregunta, type EvidenciaVM } from "./EvidenciasPregunta";
 import { HistorialPregunta } from "./HistorialPregunta";
 import { ValidarRespuesta } from "./ValidarRespuesta";
+import { CorregirAporte } from "./CorregirAporte";
 
 type Props = {
   respuesta: {
@@ -31,11 +32,15 @@ type Props = {
 };
 
 export type AporteVM = {
+  id: string;
   autor: string;
   cargo: string | null;
   valor: string | null;
   comentario: string | null;
   riesgoIdentificado: string | null;
+  /** Quién lo corrigió, si no fue su autor, y cuándo. */
+  corregidoPor: string | null;
+  corregidoEn: string | null;
 };
 
 const LABEL_CORTO: Record<Valor, string> = {
@@ -60,6 +65,7 @@ export function PreguntaItem({
   const [estado, setEstado] = useState(respuesta.estado);
   const [guardado, setGuardado] = useState<"limpio" | "guardando" | "ok" | "error">("limpio");
   const [error, setError] = useState<string | null>(null);
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null);
 
   const comentarioRequerido = requiereComentario(valor);
   // Una evidencia sin archivo es un pendiente del checklist, no un respaldo cargado.
@@ -243,14 +249,23 @@ export function PreguntaItem({
                 {consolidadaManual && <Badge color="blue">Oficial fijada por el consultor</Badge>}
               </div>
               <ul className="mt-2 divide-y divide-slate-100">
-                {aportes.map((a, i) => (
-                  <li key={i} className="py-2 first:pt-1 last:pb-0">
-                    <div className="flex items-center gap-2">
+                {aportes.map((a) => (
+                  <li key={a.id} className="py-2 first:pt-1 last:pb-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-slate-100 px-1.5 text-xs font-bold text-slate-700">
                         {a.valor ? LABEL_CORTO[a.valor as Valor] ?? a.valor : "—"}
                       </span>
                       <span className="text-sm font-medium text-slate-700">{a.autor}</span>
                       {a.cargo && <span className="text-xs text-slate-400">{a.cargo}</span>}
+                      {!soloLectura && corrigiendo !== a.id && (
+                        <button
+                          type="button"
+                          onClick={() => setCorrigiendo(a.id)}
+                          className="ml-auto text-xs text-slate-500 underline underline-offset-2 hover:text-brand-600"
+                        >
+                          Corregir
+                        </button>
+                      )}
                     </div>
                     {a.comentario && (
                       <p className="mt-1 pl-8 text-sm text-slate-600">{a.comentario}</p>
@@ -259,6 +274,24 @@ export function PreguntaItem({
                       <p className="mt-0.5 pl-8 text-xs text-orange-600">
                         Riesgo: {a.riesgoIdentificado}
                       </p>
+                    )}
+                    {a.corregidoPor && (
+                      <p className="mt-1 pl-8 text-xs italic text-slate-400">
+                        Corregido por {a.corregidoPor}
+                        {a.corregidoEn && ` · ${a.corregidoEn}`}
+                      </p>
+                    )}
+                    {corrigiendo === a.id && (
+                      <div className="pl-8">
+                        <CorregirAporte
+                          aporteId={a.id}
+                          autor={a.autor}
+                          valorInicial={a.valor}
+                          comentarioInicial={a.comentario}
+                          riesgoInicial={a.riesgoIdentificado}
+                          onListo={() => setCorrigiendo(null)}
+                        />
+                      </div>
                     )}
                   </li>
                 ))}

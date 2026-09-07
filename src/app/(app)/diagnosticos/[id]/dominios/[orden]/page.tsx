@@ -200,11 +200,16 @@ export default async function DominioPage({
               aportes={
                 puedeValidar
                   ? r.aportes.map((a) => ({
+                      id: a.id,
                       autor: a.user.nombre,
                       cargo: a.user.cargo,
                       valor: a.valor,
                       comentario: a.comentario,
                       riesgoIdentificado: a.riesgoIdentificado,
+                      corregidoPor: a.corregidoPor?.nombre ?? null,
+                      corregidoEn: a.corregidoEn
+                        ? a.corregidoEn.toLocaleDateString("es-CL", { day: "numeric", month: "short" })
+                        : null,
                     }))
                   : []
               }

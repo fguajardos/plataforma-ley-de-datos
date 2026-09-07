@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
+import { requireSession, puedeRevisarDominios, sinAccesoAEmpresa } from "@/lib/session";
 import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import { requiereComentario, ROLES, VALORES } from "@/lib/constants";
 import { consolidarAportes } from "@/lib/engines/consolidacion";
@@ -84,9 +84,12 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
   if (sinAccesoAEmpresa(session, diag.empresaId)) {
     return { ok: false, error: "Sin acceso." };
   }
-  // El Responsable de Dominio solo responde los dominios en los que participa.
+  // El Responsable de Dominio solo responde los dominios en los que participa. Quien
+  // revisa el levantamiento queda fuera de esa regla: su trabajo es justamente el dominio
+  // completo, participe o no.
   if (
     session.user.role === ROLES.RESPONSABLE_DOMINIO &&
+    !(await puedeRevisarDominios(diag.empresaId)) &&
     !(await esParticipanteDominio(respuesta.diagnosticoDominio.id, session.user.id))
   ) {
     return { ok: false, error: "Este dominio no está asignado a ti." };
@@ -100,10 +103,14 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
     return { ok: false, error: "El dominio ya fue enviado a validación." };
   }
 
-  const esConsultor = esStaffP360(session.user.role);
+  // Quien revisa escribe la respuesta oficial; quien participa escribe la suya. Pablo
+  // Torrealba es las dos cosas —revisa Honda y responde cinco dominios—: al revisar, este
+  // formulario le escribe la oficial, y su propio aporte lo corrige desde la lista de
+  // participantes, que es donde vive.
+  const revisa = await puedeRevisarDominios(diag.empresaId);
 
-  if (esConsultor) {
-    // El consultor escribe directamente la respuesta oficial y la deja fijada, para que
+  if (revisa) {
+    // Quien revisa escribe directamente la respuesta oficial y la deja fijada, para que
     // un aporte posterior de un participante no le sobrescriba el criterio.
     const completa = !requiereComentario(valor) || Boolean(comentario.trim());
     await prisma.respuesta.update({
@@ -148,6 +155,84 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
 
   revalidatePath(
     `/diagnosticos/${diag.id}/dominios/${respuesta.diagnosticoDominio.dominio.orden}`
+  );
+  revalidatePath(`/diagnosticos/${diag.id}`);
+  return { ok: true };
+}
+
+// ───────────────────── Corrección del aporte de un participante ─────────────────────
+
+const correccionSchema = z.object({
+  aporteId: z.string().min(1),
+  valor: z.enum(VALORES),
+  comentario: z.string().max(2000).optional().default(""),
+  riesgoIdentificado: z.string().max(1000).optional().default(""),
+});
+
+/**
+ * Corrige lo que respondió un participante.
+ *
+ * Existe porque en el levantamiento aparecen respuestas que hay que arreglar —una nota
+ * puesta en la casilla equivocada, un comentario a medio escribir— y perseguir a la
+ * persona para que entre a corregirlo detiene el trabajo de todos.
+ *
+ * Queda registrado quién corrigió y cuándo, y se muestra al lado del aporte. El aporte
+ * NO cambia de autor: sigue siendo de quien respondió, porque es su declaración. Que una
+ * corrección pudiera pasar por la palabra del participante es exactamente lo que un
+ * registro de cumplimiento no puede permitir.
+ */
+export async function corregirAporte(
+  input: z.input<typeof correccionSchema>
+): Promise<RespuestaResult> {
+  const session = await requireSession();
+  const parsed = correccionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+  const { aporteId, valor, comentario, riesgoIdentificado } = parsed.data;
+
+  const aporte = await prisma.aporteRespuesta.findUnique({
+    where: { id: aporteId },
+    select: {
+      id: true,
+      userId: true,
+      respuestaId: true,
+      respuesta: {
+        select: {
+          diagnosticoDominio: {
+            select: {
+              id: true,
+              dominio: { select: { orden: true } },
+              diagnostico: { select: { id: true, empresaId: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!aporte) return { ok: false, error: "Respuesta del participante no encontrada." };
+
+  const diag = aporte.respuesta.diagnosticoDominio.diagnostico;
+  if (!(await puedeRevisarDominios(diag.empresaId))) {
+    return { ok: false, error: "No tienes permiso para corregir respuestas de este dominio." };
+  }
+
+  const propio = aporte.userId === session.user.id;
+  await prisma.aporteRespuesta.update({
+    where: { id: aporteId },
+    data: {
+      valor,
+      comentario: comentario.trim() || null,
+      riesgoIdentificado: riesgoIdentificado.trim() || null,
+      // Corregir el propio no es una corrección de nadie: no se marca, y si venía marcado
+      // de antes, la marca se levanta porque el autor ya lo hizo suyo otra vez.
+      corregidoPorId: propio ? null : session.user.id,
+      corregidoEn: propio ? null : new Date(),
+    },
+  });
+
+  await reconsolidarRespuesta(aporte.respuestaId, session.user.id);
+
+  revalidatePath(
+    `/diagnosticos/${diag.id}/dominios/${aporte.respuesta.diagnosticoDominio.dominio.orden}`
   );
   revalidatePath(`/diagnosticos/${diag.id}`);
   return { ok: true };

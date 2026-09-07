@@ -225,6 +225,7 @@ model User {
   participaciones       ParticipanteDominio[]
   aceptaciones          AceptacionConsentimiento[]
   aportes               AporteRespuesta[]
+  aportesCorregidos     AporteRespuesta[]          @relation("aportesCorregidos")
 }
 
 // Registro inmutable de cada aceptación: acredita quién consintió, qué versión
@@ -410,8 +411,19 @@ model AporteRespuesta {
   valor              String? // "0".."5", "N_A", "OTRO"; null = pendiente
   comentario         String?
   riesgoIdentificado String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+
+  // Quién corrigió este aporte, cuando no fue su propio autor.
+  //
+  // Se guarda en la fila y no solo en la bitácora porque tiene que verse en pantalla: una
+  // plataforma de cumplimiento no puede dejar que lo declarado por una persona se
+  // reescriba y siga apareciendo como suyo. El aporte queda con su autor —es quien
+  // respondió— y al lado, quién lo corrigió y cuándo.
+  corregidoPorId String?
+  corregidoPor   User?     @relation("aportesCorregidos", fields: [corregidoPorId], references: [id], onDelete: SetNull)
+  corregidoEn    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([respuestaId, userId])
   @@index([userId])

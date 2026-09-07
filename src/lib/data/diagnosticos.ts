@@ -263,12 +263,21 @@ export async function getDiagnosticoDominio(
           // ciegas); quien revisa los recibe todos para poder consolidar.
           aportes: revisa
             ? {
-                include: { user: { select: { id: true, nombre: true, cargo: true } } },
+                include: {
+                  user: { select: { id: true, nombre: true, cargo: true } },
+                  corregidoPor: { select: { nombre: true } },
+                },
                 orderBy: { user: { nombre: "asc" } },
               }
             : {
                 where: { userId: session.user.id },
-                include: { user: { select: { id: true, nombre: true, cargo: true } } },
+                // Se incluye lo mismo en las dos ramas para que el tipo sea uno solo: si
+                // difieren, cada pantalla que los use tiene que distinguir dos formas de
+                // aporte sin que eso signifique nada.
+                include: {
+                  user: { select: { id: true, nombre: true, cargo: true } },
+                  corregidoPor: { select: { nombre: true } },
+                },
               },
         },
         orderBy: { pregunta: { orden: "asc" } },
