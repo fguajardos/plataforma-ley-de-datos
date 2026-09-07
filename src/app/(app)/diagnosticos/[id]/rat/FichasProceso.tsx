@@ -3,9 +3,9 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, Select, Textarea } from "@/components/ui";
-import { MAX_EVIDENCIA_MB, MAX_EVIDENCIA_BYTES } from "@/lib/constants";
+import { MAX_EVIDENCIA_MB, MAX_EVIDENCIA_BYTES, MAX_FICHAS_LOTE } from "@/lib/constants";
 import { analisisLoLee, motivoNoLegible } from "@/lib/documentos";
-import { prepararSubidaFicha, registrarFicha, eliminarFicha } from "./fichas-actions";
+import { prepararSubidaFichas, registrarFichas, eliminarFicha } from "./fichas-actions";
 
 export type FichaVM = {
   id: string;
@@ -20,10 +20,63 @@ export type FichaVM = {
 
 type Area = { id: string; nombre: string };
 
+/** Cuántos archivos viajan a Storage a la vez. */
+const EN_PARALELO = 3;
+
 function peso(bytes: number | null): string {
   if (!bytes) return "";
   const mb = bytes / 1024 / 1024;
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+}
+
+/**
+ * Un nombre presentable a partir del archivo.
+ *
+ * Las fichas llegan como "Ficha_de_Levantamiento_S_2.1_Recepción_de_Materiales.xlsx".
+ * Se le quita la extensión, se cambian los guiones bajos por espacios y se le devuelve la
+ * forma al código del proceso —"S_2.1" vuelve a ser "S-2.1", que es como se llama en el
+ * mapa de procesos—. El prefijo "Ficha de Levantamiento" sobra dentro de una sección que
+ * se llama Fichas de proceso, así que se saca cuando queda algo después.
+ */
+function nombreDesde(archivo: string): string {
+  const base = archivo
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_]+/g, " ")
+    .replace(/\b([A-Za-z])\s(\d+(?:\.\d+)*)\b/g, "$1-$2")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sinPrefijo = base.replace(/^ficha\s+de\s+levantamiento\s*/i, "").trim();
+  return (sinPrefijo.length >= 3 ? sinPrefijo : base).slice(0, 200);
+}
+
+type Estado = "pendiente" | "subiendo" | "lista" | "error";
+
+type EnCola = {
+  archivo: File;
+  nombre: string;
+  estado: Estado;
+  motivo?: string;
+  /** Ruta en Storage una vez que el archivo llegó. */
+  path?: string;
+};
+
+/**
+ * Corre `fn` sobre la lista con un tope de tareas simultáneas.
+ *
+ * Veinte subidas a la vez saturan la conexión y hacen que todas vayan lentas; de a una,
+ * la ventana se pasa esperando. Tres es lo que aprovecha el ancho de banda sin que el
+ * navegador empiece a encolar por su cuenta.
+ */
+async function enTandas<T>(items: T[], tope: number, fn: (item: T, i: number) => Promise<void>) {
+  let siguiente = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(tope, items.length) }, async () => {
+      while (siguiente < items.length) {
+        const i = siguiente++;
+        await fn(items[i], i);
+      }
+    })
+  );
 }
 
 export function FichasProceso({
@@ -40,57 +93,135 @@ export function FichasProceso({
   const [abrir, setAbrir] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
-  const [form, setForm] = useState({ nombre: "", descripcion: "", areaId: "" });
-  const [avisoFormato, setAvisoFormato] = useState<string | null>(null);
+  const [cola, setCola] = useState<EnCola[]>([]);
+  const [comun, setComun] = useState({ descripcion: "", areaId: "" });
   const archivoRef = useRef<HTMLInputElement>(null);
 
-  async function subir() {
-    const archivo = archivoRef.current?.files?.[0];
+  function elegir(files: FileList | null) {
     setMsg(null);
-    if (!archivo) return setMsg({ ok: false, texto: "Elige un archivo." });
-    if (form.nombre.trim().length < 3) {
-      return setMsg({ ok: false, texto: "Ponle un nombre a la ficha." });
+    const elegidos = Array.from(files ?? []);
+    if (elegidos.length > MAX_FICHAS_LOTE) {
+      setMsg({
+        ok: false,
+        texto: `Elegiste ${elegidos.length} archivos y el máximo por tanda es ${MAX_FICHAS_LOTE}. Sube los primeros y repite.`,
+      });
     }
-    if (archivo.size > MAX_EVIDENCIA_BYTES) {
-      return setMsg({ ok: false, texto: `El archivo supera ${MAX_EVIDENCIA_MB} MB.` });
+    setCola(
+      elegidos.slice(0, MAX_FICHAS_LOTE).map((archivo) => ({
+        archivo,
+        nombre: nombreDesde(archivo.name),
+        estado: archivo.size > MAX_EVIDENCIA_BYTES ? "error" : "pendiente",
+        motivo: archivo.size > MAX_EVIDENCIA_BYTES ? `supera ${MAX_EVIDENCIA_MB} MB` : undefined,
+      }))
+    );
+  }
+
+  function renombrar(i: number, nombre: string) {
+    setCola((prev) => prev.map((f, k) => (k === i ? { ...f, nombre } : f)));
+  }
+
+  function marcar(i: number, cambio: Partial<EnCola>) {
+    setCola((prev) => prev.map((f, k) => (k === i ? { ...f, ...cambio } : f)));
+  }
+
+  function limpiar() {
+    setCola([]);
+    setComun({ descripcion: "", areaId: "" });
+    if (archivoRef.current) archivoRef.current.value = "";
+  }
+
+  async function subir() {
+    const porSubir = cola.filter((f) => f.estado === "pendiente" || f.estado === "error");
+    setMsg(null);
+    if (porSubir.length === 0) return setMsg({ ok: false, texto: "Elige al menos un archivo." });
+    const sinNombre = porSubir.find((f) => f.nombre.trim().length < 3);
+    if (sinNombre) {
+      return setMsg({ ok: false, texto: `"${sinNombre.archivo.name}" necesita un nombre.` });
     }
 
     setSubiendo(true);
     try {
-      const prep = await prepararSubidaFicha(empresaId, archivo.name, archivo.size);
-      if (!prep.ok || !prep.signedUrl || !prep.path) {
+      // Los índices son sobre la cola completa: lo que ya subió en un intento anterior no
+      // se vuelve a subir, y los avisos siguen apuntando a la fila correcta.
+      const indices = cola
+        .map((f, i) => ({ f, i }))
+        .filter(({ f }) => f.estado === "pendiente" || f.estado === "error")
+        .map(({ i }) => i);
+
+      const prep = await prepararSubidaFichas(
+        empresaId,
+        indices.map((i) => ({ nombre: cola[i].archivo.name, tamano: cola[i].archivo.size }))
+      );
+      if (!prep.ok || !prep.destinos) {
         setMsg({ ok: false, texto: prep.error ?? "No se pudo preparar la subida." });
         return;
       }
-      // El archivo va del navegador directo a Storage: el servidor rechaza cuerpos
-      // grandes, así que pasar por él limitaría las fichas a unos pocos megas.
-      const res = await fetch(prep.signedUrl, {
-        method: "PUT",
-        headers: { "Content-Type": archivo.type || "application/octet-stream" },
-        body: archivo,
+
+      for (const i of indices) marcar(i, { estado: "subiendo", motivo: undefined });
+
+      const listas: { i: number; path: string }[] = [];
+      await enTandas(indices, EN_PARALELO, async (i, pos) => {
+        const destino = prep.destinos![pos];
+        if (!destino?.signedUrl || !destino.path) {
+          marcar(i, { estado: "error", motivo: destino?.error ?? "sin destino" });
+          return;
+        }
+        const archivo = cola[i].archivo;
+        try {
+          // El archivo va del navegador directo a Storage: el servidor rechaza cuerpos
+          // grandes, así que pasar por él limitaría las fichas a unos pocos megas.
+          const res = await fetch(destino.signedUrl, {
+            method: "PUT",
+            headers: { "Content-Type": archivo.type || "application/octet-stream" },
+            body: archivo,
+          });
+          if (!res.ok) {
+            marcar(i, { estado: "error", motivo: `no se pudo subir (${res.status})` });
+            return;
+          }
+          marcar(i, { estado: "lista", path: destino.path, motivo: undefined });
+          listas.push({ i, path: destino.path });
+        } catch (e) {
+          marcar(i, { estado: "error", motivo: (e as Error).message.slice(0, 60) });
+        }
       });
-      if (!res.ok) {
-        setMsg({ ok: false, texto: `No se pudo subir el archivo (${res.status}).` });
+
+      if (listas.length === 0) {
+        setMsg({ ok: false, texto: "No se pudo subir ningún archivo." });
         return;
       }
-      const reg = await registrarFicha({
+
+      const reg = await registrarFichas({
         empresaId,
-        nombre: form.nombre,
-        descripcion: form.descripcion,
-        areaId: form.areaId || undefined,
-        archivoPath: prep.path,
-        mimeType: archivo.type || undefined,
-        tamano: archivo.size,
+        areaId: comun.areaId || undefined,
+        descripcion: comun.descripcion,
+        fichas: listas.map(({ i, path }) => ({
+          nombre: cola[i].nombre,
+          archivoPath: path,
+          mimeType: cola[i].archivo.type || undefined,
+          tamano: cola[i].archivo.size,
+        })),
       });
       if (!reg.ok) {
-        setMsg({ ok: false, texto: reg.error ?? "No se pudo registrar la ficha." });
+        setMsg({ ok: false, texto: reg.error ?? "Los archivos subieron, pero no se registraron." });
         return;
       }
-      setForm({ nombre: "", descripcion: "", areaId: "" });
-      setAvisoFormato(null);
-      if (archivoRef.current) archivoRef.current.value = "";
-      setAbrir(false);
-      setMsg({ ok: true, texto: "Ficha cargada." });
+
+      const fallidas = cola.length - listas.length;
+      setMsg({
+        ok: true,
+        texto:
+          `${reg.creadas} ${reg.creadas === 1 ? "ficha cargada" : "fichas cargadas"}.` +
+          (fallidas > 0 ? ` ${fallidas} quedaron sin subir: revisa el detalle.` : ""),
+      });
+      if (fallidas === 0) {
+        limpiar();
+        setAbrir(false);
+      } else {
+        // Solo se sacan las que sí entraron: las que fallaron quedan listas para reintentar
+        // sin tener que volver a elegir los archivos uno por uno.
+        setCola((prev) => prev.filter((f) => f.estado !== "lista"));
+      }
       router.refresh();
     } finally {
       setSubiendo(false);
@@ -106,6 +237,9 @@ export function FichasProceso({
     });
   }
 
+  const porSubir = cola.filter((f) => f.estado !== "lista").length;
+  const sinLeer = cola.filter((f) => !analisisLoLee(f.archivo.type)).length;
+
   return (
     <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -119,7 +253,7 @@ export function FichasProceso({
           </p>
         </div>
         <Button onClick={() => setAbrir(!abrir)} disabled={subiendo}>
-          {abrir ? "Cancelar" : "Subir ficha"}
+          {abrir ? "Cancelar" : "Subir fichas"}
         </Button>
       </div>
 
@@ -129,70 +263,124 @@ export function FichasProceso({
 
       {abrir && (
         <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <Label htmlFor="ficha-nombre">Nombre de la ficha</Label>
-              <Input
-                id="ficha-nombre"
-                value={form.nombre}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                placeholder="Ficha de proceso — Reclutamiento y selección"
-              />
-            </div>
-            <div>
-              <Label htmlFor="ficha-area">Área levantada</Label>
-              <Select
-                id="ficha-area"
-                value={form.areaId}
-                onChange={(e) => setForm((f) => ({ ...f, areaId: e.target.value }))}
-              >
-                <option value="">Sin área específica</option>
-                {areas.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nombre}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
           <div>
-            <Label htmlFor="ficha-desc">Contexto (opcional)</Label>
-            <Textarea
-              id="ficha-desc"
-              rows={2}
-              value={form.descripcion}
-              onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-              placeholder="De qué sesión salió, con quién se levantó, qué alcance tiene."
-            />
-          </div>
-          <div>
-            <Label htmlFor="ficha-archivo">Archivo</Label>
+            <Label htmlFor="ficha-archivo">Archivos</Label>
             <input
               id="ficha-archivo"
               ref={archivoRef}
               type="file"
-              // Se avisa al elegir el archivo y no después de subirlo: descubrir que el
-              // análisis no lo lee cuando ya está guardado obliga a repetir todo el
-              // trámite, y es justo el momento en que la persona todavía tiene el
-              // documento abierto para exportarlo.
-              onChange={(e) => setAvisoFormato(motivoNoLegible(e.target.files?.[0]?.type ?? null))}
+              multiple
+              onChange={(e) => elegir(e.target.files)}
               className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
             />
-            {avisoFormato ? (
-              <p className="mt-1 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs text-orange-800">
-                <strong>El análisis no va a poder leerlo</strong>: {avisoFormato}. Puedes subirlo
-                igual —queda en el expediente— pero no aportará al RAT.
-              </p>
-            ) : (
-              <p className="mt-1 text-xs text-slate-500">
-                Hasta {MAX_EVIDENCIA_MB} MB. El análisis lee <strong>PDF, imágenes, Word (.docx) y
-                Excel (.xlsx)</strong>. Los formatos antiguos (.doc, .xls) y las presentaciones hay
-                que exportarlos a PDF.
-              </p>
-            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Puedes elegir <strong>varios de una vez</strong> —hasta {MAX_FICHAS_LOTE} por
+              tanda, {MAX_EVIDENCIA_MB} MB cada uno—. El nombre sale del archivo y lo puedes
+              corregir abajo. El análisis lee <strong>PDF, imágenes, Word (.docx) y Excel
+              (.xlsx)</strong>.
+            </p>
           </div>
-          <Button onClick={subir} disabled={subiendo}>
-            {subiendo ? "Subiendo…" : "Cargar ficha"}
+
+          {cola.length > 0 && (
+            <>
+              <div className="rounded-lg border border-slate-200 bg-white">
+                <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                  <p className="text-xs font-medium text-slate-600">
+                    {cola.length} {cola.length === 1 ? "archivo" : "archivos"}
+                    {sinLeer > 0 && (
+                      <span className="text-orange-700">
+                        {" "}
+                        · {sinLeer} que el análisis no podrá leer
+                      </span>
+                    )}
+                  </p>
+                  {!subiendo && (
+                    <button
+                      type="button"
+                      onClick={limpiar}
+                      className="text-xs text-slate-500 underline underline-offset-2 hover:text-slate-800"
+                    >
+                      Vaciar
+                    </button>
+                  )}
+                </div>
+                <ul className="divide-y divide-slate-100">
+                  {cola.map((f, i) => {
+                    const motivoFormato = motivoNoLegible(f.archivo.type);
+                    return (
+                      <li key={`${f.archivo.name}-${i}`} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                        <span className="w-5 shrink-0 text-center text-sm" aria-hidden>
+                          {f.estado === "lista" && "✓"}
+                          {f.estado === "error" && "✕"}
+                          {f.estado === "subiendo" && "…"}
+                        </span>
+                        <Input
+                          value={f.nombre}
+                          disabled={subiendo || f.estado === "lista"}
+                          aria-label={`Nombre de ${f.archivo.name}`}
+                          onChange={(e) => renombrar(i, e.target.value)}
+                          className="min-w-[220px] flex-1"
+                        />
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {peso(f.archivo.size)}
+                        </span>
+                        {f.motivo && (
+                          <span className="w-full text-xs text-red-600">{f.motivo}</span>
+                        )}
+                        {!f.motivo && motivoFormato && (
+                          <span className="w-full text-xs text-orange-700">
+                            El análisis no va a poder leerlo: {motivoFormato}. Se guarda igual
+                            en el expediente.
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="ficha-area">Área levantada</Label>
+                  <Select
+                    id="ficha-area"
+                    value={comun.areaId}
+                    disabled={subiendo}
+                    onChange={(e) => setComun((c) => ({ ...c, areaId: e.target.value }))}
+                  >
+                    <option value="">Sin área específica</option>
+                    {areas.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.nombre}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="ficha-desc">Contexto (opcional)</Label>
+                  <Textarea
+                    id="ficha-desc"
+                    rows={2}
+                    value={comun.descripcion}
+                    disabled={subiendo}
+                    onChange={(e) => setComun((c) => ({ ...c, descripcion: e.target.value }))}
+                    placeholder="De qué sesión salieron, con quién se levantaron, qué alcance tienen."
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">
+                El área y el contexto se aplican a <strong>toda la tanda</strong>. Si vienen de
+                áreas distintas, súbelas en tandas separadas o corrígelo después.
+              </p>
+            </>
+          )}
+
+          <Button onClick={subir} disabled={subiendo || porSubir === 0}>
+            {subiendo
+              ? "Subiendo…"
+              : porSubir === 0
+                ? "Elige archivos"
+                : `Cargar ${porSubir} ${porSubir === 1 ? "ficha" : "fichas"}`}
           </Button>
         </div>
       )}

@@ -153,6 +153,15 @@ export const ESTADO_RESPUESTA = {
 
 /** Tamaño máximo de una evidencia. El archivo viaja del navegador directo a Storage
  *  mediante una URL firmada, así que no lo limita el servidor sino el bucket. */
+/**
+ * Cuántas fichas de proceso se aceptan en una tanda.
+ *
+ * El levantamiento de un área son cinco o seis fichas, y el de una empresa entera
+ * cuarenta. Veinte deja pasar una jornada completa sin que una equivocación al elegir la
+ * carpeta mande el disco duro a Storage.
+ */
+export const MAX_FICHAS_LOTE = 20;
+
 export const MAX_EVIDENCIA_MB = 50;
 export const MAX_EVIDENCIA_BYTES = MAX_EVIDENCIA_MB * 1024 * 1024;
 
