@@ -6,7 +6,7 @@ import { Button } from "@/components/ui";
 import { cerrarDominio, reabrirDominio, validarTodas, deshacerValidaciones } from "./validacion-actions";
 
 /**
- * Cierre del dominio por parte del consultor, y su contrapeso: reabrirlo.
+ * Cierre del dominio por parte de quien lo revisa, y su contrapeso: reabrirlo.
  *
  * Reabrir estaba solo en un script de consola, y era lo único que permitía recoger el
  * trabajo de quien quedó fuera cuando un participante envió el dominio antes de tiempo.
@@ -79,7 +79,7 @@ export function ValidacionDominio({
               completado ? "text-green-900" : "text-blue-900"
             }`}
           >
-            {completado ? "Dominio cerrado" : "Revisión del consultor"}
+            {completado ? "Dominio cerrado" : "Revisión del levantamiento"}
           </p>
           <p className={`mt-1 text-sm ${completado ? "text-green-800" : "text-blue-800"}`}>
             {validadas} de {total} preguntas validadas

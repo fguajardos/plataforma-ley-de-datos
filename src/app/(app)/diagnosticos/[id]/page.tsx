@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requireSession, puedeRevisarDominios } from "@/lib/session";
 import { ROLES, TIPO_DIAGNOSTICO, NIVEL_MADUREZ, respuestaCompleta } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import { getDiagnosticoFull, madurezDeDiagnostico } from "@/lib/data/diagnosticos";
@@ -46,6 +46,10 @@ export default async function DiagnosticoDetallePage({
   // El Responsable de Dominio solo responde su cuestionario: sin pestañas de
   // gestión, sin Configurar y sin entrar a dominios ajenos.
   const esResponsableRol = session.user.role === ROLES.RESPONSABLE_DOMINIO;
+  // Quien revisa el levantamiento por parte del cliente sigue sin gestión ni Configurar
+  // —no es su trabajo— pero sí abre los diez dominios: no se puede controlar lo que no se
+  // puede leer, y controlar es para lo que se le dio el permiso.
+  const revisa = await puedeRevisarDominios(diag.empresaId);
 
   return (
     <>
@@ -160,7 +164,7 @@ export default async function DiagnosticoDetallePage({
                 );
               }
               // El responsable de dominio no entra a los dominios de otros.
-              const bloqueado = esResponsableRol && !esMio;
+              const bloqueado = esResponsableRol && !esMio && !revisa;
               const contenido = (
                 <>
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-sm font-bold text-brand">

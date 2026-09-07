@@ -6,7 +6,8 @@ import { Button, Textarea } from "@/components/ui";
 import { validarRespuesta, observarRespuesta, quitarValidacion } from "./validacion-actions";
 
 /**
- * Controles de revisión de una pregunta. Solo los ve el equipo consultor.
+ * Controles de revisión de una pregunta. Los ve quien revisa el levantamiento: el equipo
+ * consultor, y la contraparte del cliente que lleva el control interno.
  *
  * Están disponibles en cualquier momento y no solo con el dominio ya enviado: dejar una
  * observación mientras se trabaja el cuestionario es justamente cuando más sirve.
@@ -116,7 +117,7 @@ export function ValidarRespuesta({
           >
             Quitar validación
           </button>
-          <span className="text-xs text-green-600">Validada por el equipo consultor.</span>
+          <span className="text-xs text-green-600">Respuesta validada.</span>
         </>
       )}
       {error && <span className="text-xs text-red-600">{error}</span>}

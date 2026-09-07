@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
+import { requireSession, puedeRevisarDominios } from "@/lib/session";
 
 // Cierre del ciclo de revisión: validar, observar y cerrar.
 //
@@ -12,8 +12,10 @@ import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
 // dominio esté cerrado. Lo único que faltaba era quién disparara todo eso: hasta ahora
 // un dominio entraba en validación y se quedaba ahí para siempre.
 //
-// Todo esto es del equipo consultor. Admin y consultor son equivalentes en la
-// plataforma, así que `esStaffP360` cubre a los dos sin distinguirlos.
+// Quién puede hacerlo lo decide `puedeRevisarDominios`: el equipo consultor en cualquiera
+// de sus clientes, y la contraparte del cliente que revisa, solo dentro de su empresa. La
+// comprobación va SIEMPRE después de cargar el contexto, porque lo que autoriza no es el
+// rol sino el rol junto con la empresa a la que pertenece lo que se está tocando.
 
 export type ValidacionResult = { ok: boolean; error?: string };
 
@@ -50,15 +52,12 @@ function revalidar(diagId: string, orden: number) {
 
 /** Da por buena la respuesta consolidada de una pregunta. */
 export async function validarRespuesta(respuestaId: string): Promise<ValidacionResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede validar." };
-  }
+  await requireSession();
 
   const r = await contexto(respuestaId);
   if (!r) return { ok: false, error: "Pregunta no encontrada." };
-  if (sinAccesoAEmpresa(session, r.diagnosticoDominio.diagnostico.empresaId)) {
-    return { ok: false, error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(r.diagnosticoDominio.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar este dominio." };
   }
   if (r.valor == null) {
     return { ok: false, error: "No se puede validar una pregunta sin responder." };
@@ -85,10 +84,7 @@ export async function validarRespuesta(respuestaId: string): Promise<ValidacionR
 export async function observarRespuesta(
   input: z.input<typeof observacionSchema>
 ): Promise<ValidacionResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede observar." };
-  }
+  await requireSession();
   const parsed = observacionSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -97,8 +93,8 @@ export async function observarRespuesta(
 
   const r = await contexto(respuestaId);
   if (!r) return { ok: false, error: "Pregunta no encontrada." };
-  if (sinAccesoAEmpresa(session, r.diagnosticoDominio.diagnostico.empresaId)) {
-    return { ok: false, error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(r.diagnosticoDominio.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar este dominio." };
   }
 
   await prisma.respuesta.update({
@@ -136,15 +132,12 @@ async function contextoDominio(diagnosticoDominioId: string) {
 export async function cerrarDominio(
   diagnosticoDominioId: string
 ): Promise<ValidacionResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede cerrar un dominio." };
-  }
+  await requireSession();
 
   const dd = await contextoDominio(diagnosticoDominioId);
   if (!dd) return { ok: false, error: "Dominio no encontrado." };
-  if (sinAccesoAEmpresa(session, dd.diagnostico.empresaId)) {
-    return { ok: false, error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(dd.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar este dominio." };
   }
   if (dd.estado === "COMPLETADO") return { ok: false, error: "Este dominio ya está cerrado." };
 
@@ -187,15 +180,12 @@ export async function cerrarDominio(
 export async function reabrirDominio(
   diagnosticoDominioId: string
 ): Promise<ValidacionResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede reabrir un dominio." };
-  }
+  await requireSession();
 
   const dd = await contextoDominio(diagnosticoDominioId);
   if (!dd) return { ok: false, error: "Dominio no encontrado." };
-  if (sinAccesoAEmpresa(session, dd.diagnostico.empresaId)) {
-    return { ok: false, error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(dd.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar este dominio." };
   }
   if (!["EN_VALIDACION", "COMPLETADO"].includes(dd.estado)) {
     return { ok: false, error: "Este dominio ya está abierto." };
@@ -220,8 +210,7 @@ export async function reabrirDominio(
 export type BloqueResult = { ok: boolean; error?: string; afectadas?: number };
 
 async function accesoAlDominio(diagnosticoDominioId: string) {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) return { error: "Solo el equipo consultor puede hacer esto." };
+  await requireSession();
   const dd = await prisma.diagnosticoDominio.findUnique({
     where: { id: diagnosticoDominioId },
     select: {
@@ -231,7 +220,9 @@ async function accesoAlDominio(diagnosticoDominioId: string) {
     },
   });
   if (!dd) return { error: "Dominio no encontrado." };
-  if (sinAccesoAEmpresa(session, dd.diagnostico.empresaId)) return { error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(dd.diagnostico.empresaId))) {
+    return { error: "No tienes permiso para revisar este dominio." };
+  }
   return { dd };
 }
 
@@ -273,14 +264,11 @@ export async function deshacerValidaciones(
 
 /** Quita la validación de una sola pregunta. */
 export async function quitarValidacion(respuestaId: string): Promise<ValidacionResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede hacer esto." };
-  }
+  await requireSession();
   const r = await contexto(respuestaId);
   if (!r) return { ok: false, error: "Pregunta no encontrada." };
-  if (sinAccesoAEmpresa(session, r.diagnosticoDominio.diagnostico.empresaId)) {
-    return { ok: false, error: "Sin acceso." };
+  if (!(await puedeRevisarDominios(r.diagnosticoDominio.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar este dominio." };
   }
 
   await prisma.respuesta.update({

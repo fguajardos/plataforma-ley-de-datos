@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
+import { requireSession, sinAccesoAEmpresa, puedeRevisarDominios } from "@/lib/session";
 import { esParticipanteDominio } from "@/lib/data/diagnosticos";
 import {
   crearUrlSubidaEvidencia,
@@ -109,21 +109,41 @@ export async function registrarEvidenciaAction(datos: {
   return { ok: true };
 }
 
-/** Valida/observa/rechaza una evidencia (solo staff Procesos360). */
+/**
+ * Valida, observa o rechaza una evidencia.
+ *
+ * Comprueba la empresa además del permiso. Antes solo miraba el rol, y con el staff daba
+ * igual porque ve a todos sus clientes; desde que esto lo puede hacer alguien del cliente,
+ * el id de la evidencia venía del navegador y nada impedía revisar la de otra empresa.
+ */
 export async function validarEvidenciaAction(
   evidenciaId: string,
   estado: keyof typeof ESTADO_EVIDENCIA,
   observaciones?: string
 ): Promise<EvidenciaResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) return { ok: false, error: "Solo el consultor puede validar." };
+  await requireSession();
   if (!(estado in ESTADO_EVIDENCIA)) return { ok: false, error: "Estado inválido." };
 
   const ev = await prisma.evidencia.findUnique({
     where: { id: evidenciaId },
-    select: { id: true, respuesta: { select: { diagnosticoDominio: { select: { diagnostico: { select: { id: true } }, dominio: { select: { orden: true } } } } } } },
+    select: {
+      id: true,
+      respuesta: {
+        select: {
+          diagnosticoDominio: {
+            select: {
+              diagnostico: { select: { id: true, empresaId: true } },
+              dominio: { select: { orden: true } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!ev) return { ok: false, error: "Evidencia no encontrada." };
+  if (!(await puedeRevisarDominios(ev.respuesta?.diagnosticoDominio.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para revisar esta evidencia." };
+  }
 
   await prisma.evidencia.update({
     where: { id: evidenciaId },

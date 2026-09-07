@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, puedeRevisarDominios } from "@/lib/session";
 
 export type EntradaHistorial = {
   fecha: string;
@@ -33,17 +33,24 @@ function texto(v: unknown): string | null {
 
 /**
  * Historial de una pregunta: cambios en la respuesta oficial, en los aportes de cada
- * participante y en sus evidencias. Solo para el equipo consultor.
+ * participante y en sus evidencias.
+ *
+ * Lo ven quienes revisan el levantamiento, y solo el de su empresa: el historial muestra
+ * quién escribió qué y cuándo lo cambió, que es justo lo que no puede cruzarse entre
+ * clientes.
  */
 export async function historialPregunta(respuestaId: string): Promise<HistorialResult> {
-  const session = await requireSession();
-  if (!esStaffP360(session.user.role)) {
-    return { ok: false, error: "Solo el equipo consultor puede ver el historial." };
-  }
+  await requireSession();
 
   // La respuesta debe existir (y de paso valida que el id es real).
-  const existe = await prisma.respuesta.findUnique({ where: { id: respuestaId }, select: { id: true } });
+  const existe = await prisma.respuesta.findUnique({
+    where: { id: respuestaId },
+    select: { id: true, diagnosticoDominio: { select: { diagnostico: { select: { empresaId: true } } } } },
+  });
   if (!existe) return { ok: false, error: "Pregunta no encontrada." };
+  if (!(await puedeRevisarDominios(existe.diagnosticoDominio.diagnostico.empresaId))) {
+    return { ok: false, error: "No tienes permiso para ver este historial." };
+  }
 
   // Se buscan también los aportes y evidencias que YA no existen: su id vive dentro
   // del propio registro histórico, así que se filtra por el respuestaId que llevan.

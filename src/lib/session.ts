@@ -117,6 +117,42 @@ export const coordinaSeguimiento = cache(async (): Promise<boolean> => {
 });
 
 /**
+ * ¿Esta persona revisa el levantamiento por parte del cliente?
+ *
+ * Se lee de la base por la misma razón que `coordinaSeguimiento`: es un permiso que se
+ * otorga y se quita en caliente, y en el token obligaría a cerrar sesión para que tomara
+ * efecto.
+ */
+export const revisaLevantamiento = cache(async (): Promise<boolean> => {
+  const session = await getSession();
+  if (!session?.user?.id) return false;
+  const u = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { revisaLevantamiento: true },
+  });
+  return u?.revisaLevantamiento ?? false;
+});
+
+/**
+ * ¿Puede revisar los dominios de este diagnóstico: validar, observar, cerrar y reabrir?
+ *
+ * Lo pueden el equipo consultor y la contraparte que revisa por parte del cliente, y en
+ * los dos casos SOLO dentro de su empresa. El alcance por empresa no es un detalle: para
+ * el staff de Procesos360 daba igual porque ve a todos sus clientes, pero desde que esto
+ * lo puede tener alguien del cliente, es lo único que impide que revise el levantamiento
+ * de otra empresa.
+ */
+export async function puedeRevisarDominios(
+  empresaIdDiagnostico: string | null | undefined
+): Promise<boolean> {
+  const session = await getSession();
+  if (!session?.user) return false;
+  if (sinAccesoAEmpresa(session, empresaIdDiagnostico)) return false;
+  if (esStaffP360(session.user.role)) return true;
+  return revisaLevantamiento();
+}
+
+/**
  * ¿Puede ver el seguimiento de este diagnóstico (y por lo tanto recordarle a quien va
  * atrasado)? Lo pueden el equipo consultor y la contraparte que coordina en el cliente,
  * y en ambos casos solo dentro de la empresa que les corresponde.

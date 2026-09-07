@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession, esStaffP360 } from "@/lib/session";
+import { requireSession, puedeRevisarDominios } from "@/lib/session";
 import { ROLES, respuestaCompleta } from "@/lib/constants";
 import { getDiagnosticoDominio } from "@/lib/data/diagnosticos";
 import { PageHeader } from "@/components/PageHeader";
@@ -16,13 +16,15 @@ export default async function DominioPage({
   const { id, orden } = await params;
   const session = await requireSession();
   const { diag, dd } = await getDiagnosticoDominio(id, Number(orden), session);
-  const puedeValidar = esStaffP360(session.user.role);
+  const puedeValidar = await puedeRevisarDominios(diag.empresaId);
 
   const participantes = dd.participantes.map((p) => p.user);
   const participo = participantes.some((u) => u.id === session.user.id);
 
-  // El Responsable de Dominio solo puede entrar a los dominios en los que participa.
-  if (session.user.role === ROLES.RESPONSABLE_DOMINIO && !participo) {
+  // El Responsable de Dominio solo entra a los dominios en los que participa. La
+  // excepción es quien revisa el levantamiento por parte del cliente: no puede controlar
+  // lo que no puede abrir, y controlar es justamente para lo que se le dio el permiso.
+  if (session.user.role === ROLES.RESPONSABLE_DOMINIO && !participo && !puedeValidar) {
     return (
       <>
         <div className="mb-2">

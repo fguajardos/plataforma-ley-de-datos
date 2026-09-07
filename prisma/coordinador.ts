@@ -1,13 +1,24 @@
-// Otorga (o quita) el control del seguimiento a la contraparte del cliente.
+// Otorga (o quita) a la contraparte del cliente los permisos de control interno.
 //
-// Quien lo recibe ve el panel de "qué le falta a cada uno" de SU empresa y puede
-// mandarles el recordatorio, sin dejar de ser un participante más: sigue respondiendo
-// los dominios que tiene asignados y sigue sin ver las respuestas de sus colegas.
+// Son dos, y se dan por separado a propósito:
+//
+//   SEGUIMIENTO  ve el panel de "qué le falta a cada uno" de SU empresa y puede mandar el
+//                recordatorio. Es un permiso de lectura: no cambia nada del levantamiento.
+//
+//   REVISIÓN     valida y observa respuestas, y abre y cierra los dominios de SU empresa,
+//                igual que el equipo consultor. Además entra a los diez dominios y no solo
+//                a los que responde. Cambia el estado del levantamiento —cerrar un dominio
+//                deja a los colegas en solo lectura— y por eso no viene de regalo con el
+//                anterior: se pide aparte, con --revision.
+//
+// En los dos casos quien lo recibe sigue siendo un participante más: responde los dominios
+// que tiene asignados como cualquier otro.
 //
 // Uso:
-//   npx tsx prisma/coordinador.ts                              (lista quién lo tiene)
-//   npx tsx prisma/coordinador.ts pablo_torrealba@honda.cl     (se lo otorga)
-//   npx tsx prisma/coordinador.ts --quitar pablo_torrealba@honda.cl
+//   npx tsx prisma/coordinador.ts                                   (lista quién tiene qué)
+//   npx tsx prisma/coordinador.ts pablo_torrealba@honda.cl          (seguimiento)
+//   npx tsx prisma/coordinador.ts --revision pablo_torrealba@honda.cl
+//   npx tsx prisma/coordinador.ts --revision --quitar pablo_torrealba@honda.cl
 
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -22,23 +33,37 @@ const prisma = new PrismaClient();
 
 async function listar() {
   const us = await prisma.user.findMany({
-    where: { coordinaSeguimiento: true },
-    select: { nombre: true, email: true, role: true, empresa: { select: { razonSocial: true } } },
+    where: { OR: [{ coordinaSeguimiento: true }, { revisaLevantamiento: true }] },
+    select: {
+      nombre: true,
+      email: true,
+      role: true,
+      coordinaSeguimiento: true,
+      revisaLevantamiento: true,
+      empresa: { select: { razonSocial: true } },
+    },
     orderBy: { nombre: "asc" },
   });
   if (us.length === 0) {
-    console.log("Nadie del lado cliente coordina el seguimiento todavía.");
+    console.log("Nadie del lado cliente tiene permisos de control interno todavía.");
     return;
   }
-  console.log("Coordinan el seguimiento:");
+  console.log("Control interno del lado cliente:");
   for (const u of us) {
-    console.log(`  ${u.nombre} <${u.email}> · ${u.role} · ${u.empresa?.razonSocial ?? "sin empresa"}`);
+    const tiene = [
+      u.coordinaSeguimiento ? "seguimiento" : null,
+      u.revisaLevantamiento ? "revisión" : null,
+    ].filter(Boolean);
+    console.log(
+      `  ${u.nombre} <${u.email}> · ${u.empresa?.razonSocial ?? "sin empresa"} · ${tiene.join(" + ")}`
+    );
   }
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const quitar = args.includes("--quitar");
+  const revision = args.includes("--revision");
   const correos = args.filter((a) => a.includes("@")).map((a) => a.trim().toLowerCase());
 
   if (correos.length === 0) return listar();
@@ -59,10 +84,11 @@ async function main() {
     }
     await prisma.user.update({
       where: { id: u.id },
-      data: { coordinaSeguimiento: !quitar },
+      data: revision ? { revisaLevantamiento: !quitar } : { coordinaSeguimiento: !quitar },
     });
+    const que = revision ? "revisa el levantamiento" : "coordina el seguimiento";
     console.log(
-      `  ✓ ${u.nombre} (${u.empresa!.razonSocial}) ${quitar ? "ya no coordina" : "coordina"} el seguimiento.`
+      `  ✓ ${u.nombre} (${u.empresa!.razonSocial}) ${quitar ? `ya no ${que}` : que}.`
     );
   }
   console.log();

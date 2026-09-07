@@ -209,6 +209,17 @@ model User {
   // rol nuevo porque no cambia nada más de lo que esa persona puede hacer.
   coordinaSeguimiento Boolean @default(false)
 
+  // La contraparte del cliente que REVISA el levantamiento de su empresa: valida
+  // respuestas, las observa, y abre y cierra dominios, igual que el equipo consultor pero
+  // solo dentro de su empresa. Además puede entrar a todos los dominios y no solo a los
+  // que responde.
+  //
+  // Es un permiso aparte de `coordinaSeguimiento` y no el mismo, aunque casi siempre se
+  // den juntos: coordinar es ver quién va atrasado, y esto cambia el estado del
+  // levantamiento —cerrar un dominio deja a los colegas en solo lectura—. Un permiso que
+  // bloquea a otras personas no puede venir de regalo con uno de lectura.
+  revisaLevantamiento Boolean @default(false)
+
   diagnosticosConsultor Diagnostico[]              @relation("consultor")
   equiposConsultor      ConsultorDiagnostico[]     @relation("equipoConsultor")
   participaciones       ParticipanteDominio[]
