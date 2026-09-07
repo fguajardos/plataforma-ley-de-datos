@@ -73,8 +73,13 @@ export function PreguntaItem({
   // Dos participantes evaluaron distinto la misma práctica: vale la pena mirarlo.
   const discrepan =
     new Set((aportes ?? []).map((a) => a.valor).filter((v) => v != null)).size > 1;
-  // Solo lectura si el dominio ya se envió, salvo que el consultor haya observado ESTA pregunta.
-  const soloLectura = Boolean(bloqueado) && estado !== "OBSERVADA";
+  // Solo lectura si el dominio ya se envió, salvo que el consultor haya observado ESTA
+  // pregunta. Quien revisa nunca queda en solo lectura: la validación es justamente el
+  // momento en que se encuentran los errores, y tener que reabrir el dominio para arreglar
+  // una nota devolvería a todos los colegas a editar por un cambio de una celda.
+  const soloLectura = Boolean(bloqueado) && estado !== "OBSERVADA" && !puedeValidar;
+  /** El dominio está cerrado o en validación y quien mira puede corregirlo igual. */
+  const corrigiendoCerrado = Boolean(bloqueado) && Boolean(puedeValidar);
 
   // Guardado automático: se dispara cuando el usuario deja de editar. Acepta respuestas
   // incompletas (quedan como borrador) para no perder nunca lo avanzado; la exigencia de
@@ -201,6 +206,13 @@ export function PreguntaItem({
             </p>
           )}
 
+          {corrigiendoCerrado && (
+            <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+              El dominio está cerrado para los participantes. Lo que corrijas acá se guarda
+              sin reabrirlo: ellos siguen en solo lectura.
+            </p>
+          )}
+
           {/* Comentario */}
           <div className="mt-3">
             <Label htmlFor={`c-${respuesta.id}`}>
@@ -257,7 +269,7 @@ export function PreguntaItem({
                       </span>
                       <span className="text-sm font-medium text-slate-700">{a.autor}</span>
                       {a.cargo && <span className="text-xs text-slate-400">{a.cargo}</span>}
-                      {!soloLectura && corrigiendo !== a.id && (
+                      {puedeValidar && corrigiendo !== a.id && (
                         <button
                           type="button"
                           onClick={() => setCorrigiendo(a.id)}

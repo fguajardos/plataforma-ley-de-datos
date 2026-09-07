@@ -95,19 +95,21 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
     return { ok: false, error: "Este dominio no está asignado a ti." };
   }
 
-  // Ya enviado a validación: solo se reabre lo que el consultor observó (§6.6).
-  const dominioBloqueado = ["EN_VALIDACION", "COMPLETADO"].includes(
-    respuesta.diagnosticoDominio.estado
-  );
-  if (dominioBloqueado && respuesta.estado !== "OBSERVADA") {
-    return { ok: false, error: "El dominio ya fue enviado a validación." };
-  }
-
   // Quien revisa escribe la respuesta oficial; quien participa escribe la suya. Pablo
   // Torrealba es las dos cosas —revisa Honda y responde cinco dominios—: al revisar, este
   // formulario le escribe la oficial, y su propio aporte lo corrige desde la lista de
   // participantes, que es donde vive.
   const revisa = await puedeRevisarDominios(diag.empresaId);
+  const estadoDominio = respuesta.diagnosticoDominio.estado;
+  const dominioBloqueado = ["EN_VALIDACION", "COMPLETADO"].includes(estadoDominio);
+
+  // Enviado a validación, el PARTICIPANTE solo puede tocar lo que se le observó (§6.6).
+  // Quien revisa sí puede corregir: la validación es justamente el momento en que se
+  // encuentran los errores, y obligar a reabrir el dominio para arreglar una nota
+  // devolvería a solo lectura a todos los colegas por un cambio de una celda.
+  if (dominioBloqueado && !revisa && respuesta.estado !== "OBSERVADA") {
+    return { ok: false, error: "El dominio ya fue enviado a validación." };
+  }
 
   if (revisa) {
     // Quien revisa escribe directamente la respuesta oficial y la deja fijada, para que
@@ -151,6 +153,15 @@ export async function guardarRespuesta(input: z.input<typeof schema>): Promise<R
       where: { id: respuesta.diagnosticoDominioId },
       data: { estado: "EN_EJECUCION" },
     });
+  } else if (revisa && estadoDominio === "COMPLETADO") {
+    // Un dominio dado por cerrado al que se le cambia una respuesta ya no está cerrado:
+    // vuelve a validación, para que el tablero no lo siga contando como terminado. Es la
+    // misma regla que aplica observar una pregunta.
+    await prisma.diagnosticoDominio.update({
+      where: { id: respuesta.diagnosticoDominioId },
+      data: { estado: "EN_VALIDACION" },
+    });
+    revalidatePath("/dashboard");
   }
 
   revalidatePath(
@@ -200,6 +211,7 @@ export async function corregirAporte(
           diagnosticoDominio: {
             select: {
               id: true,
+              estado: true,
               dominio: { select: { orden: true } },
               diagnostico: { select: { id: true, empresaId: true } },
             },
@@ -230,6 +242,17 @@ export async function corregirAporte(
   });
 
   await reconsolidarRespuesta(aporte.respuestaId, session.user.id);
+
+  // Corregir no reabre el dominio: los participantes siguen en solo lectura y el trabajo
+  // de revisión continúa. Lo único que cambia es un dominio ya cerrado, que vuelve a
+  // validación porque dejó de estar conforme.
+  if (aporte.respuesta.diagnosticoDominio.estado === "COMPLETADO") {
+    await prisma.diagnosticoDominio.update({
+      where: { id: aporte.respuesta.diagnosticoDominio.id },
+      data: { estado: "EN_VALIDACION" },
+    });
+    revalidatePath("/dashboard");
+  }
 
   revalidatePath(
     `/diagnosticos/${diag.id}/dominios/${aporte.respuesta.diagnosticoDominio.dominio.orden}`
