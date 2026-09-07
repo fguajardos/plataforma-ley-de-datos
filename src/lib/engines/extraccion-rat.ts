@@ -2,7 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { urlFirmadaEvidencia } from "@/lib/storage";
 import { CAMPOS_ANALIZABLES, type CampoClave } from "@/lib/rat";
-import { esOfficeLegible, extraerTexto } from "@/lib/engines/texto-documento";
+import { analisisLoLee, esOfficeLegible } from "@/lib/documentos";
+import { extraerTexto } from "@/lib/engines/texto-documento";
 
 // Propuesta de actividades de tratamiento a partir de lo que el cliente ya entregó.
 //
@@ -27,10 +28,23 @@ import { esOfficeLegible, extraerTexto } from "@/lib/engines/texto-documento";
 // validar en workshop" en una con celdas llenas y citadas.
 
 const MODELO = "gemini-2.5-flash";
-// Los documentos pesan de verdad y viajan en base64: cuatro es lo que cabe sin arriesgar
-// que la petición se caiga por tiempo. Los comentarios, en cambio, entran todos.
-const MAX_DOCUMENTOS = 4;
+// Dos cupos distintos, porque los dos tipos de archivo no cuestan lo mismo.
+//
+// Un PDF o una imagen viajan enteros en base64: pesan, y cuatro es lo que cabe sin
+// arriesgar que la petición se caiga por tiempo. Un Word o un Excel viajan como el texto
+// que se les extrajo en el servidor, que es una fracción de eso; su techo real es el
+// presupuesto de caracteres, no la cantidad.
+//
+// Tenerlos bajo un mismo tope de cuatro dejaba fuera fichas de proceso sin ninguna razón,
+// y justamente las fichas llegan casi siempre en Excel.
+const MAX_BINARIOS = 4;
+const MAX_OFICINA = 12;
+const MAX_CANDIDATOS = 40;
 const MAX_MB_POR_DOCUMENTO = 8;
+// Presupuesto de texto extraído, repartido entre los documentos que entren. Antes cada
+// uno podía aportar 40.000 caracteres por su cuenta: con cuatro fichas la consulta se
+// hacía lenta y cara sin que la extracción mejorara.
+const PRESUPUESTO_TEXTO = 60_000;
 
 export type ModoAnalisis = "nuevas" | "completar";
 
@@ -52,7 +66,16 @@ export type ResultadoExtraccion = {
   ok: boolean;
   error?: string;
   actividades: ActividadPropuesta[];
-  fuentes: { documentos: number; comentarios: number; fichas: number; inventario: number };
+  /** El modelo se quedó sin espacio: lo que viene es parte de la respuesta, no toda. */
+  parcial?: boolean;
+  fuentes: {
+    documentos: number;
+    comentarios: number;
+    fichas: number;
+    inventario: number;
+    /** Archivos legibles que no alcanzaron a entrar en esta pasada. */
+    sinCupo: number;
+  };
 };
 
 /** Lo que se le manda al modelo, con su procedencia, para poder citarlo después. */
@@ -114,7 +137,7 @@ async function fichasDeLaEmpresa(empresaId: string) {
       area: { select: { nombre: true } },
     },
     orderBy: { tamano: "asc" },
-    take: MAX_DOCUMENTOS * 3,
+    take: MAX_CANDIDATOS,
   });
 }
 
@@ -128,7 +151,7 @@ async function documentosDelDiagnostico(diagnosticoId: string) {
     // Los más livianos primero: caben más antes de topar el límite, y un PDF corto suele
     // ser una política concreta y no un manual entero.
     orderBy: { tamano: "asc" },
-    take: MAX_DOCUMENTOS * 3,
+    take: MAX_CANDIDATOS,
   });
 }
 
@@ -251,31 +274,75 @@ function limpiarJson(texto: string): string {
 }
 
 /**
+ * Saca del texto todos los objetos completos del arreglo de actividades.
+ *
+ * Recorre carácter a carácter llevando la cuenta de llaves y sabiendo cuándo está dentro
+ * de una cadena, y devuelve cada objeto que alcanzó a cerrar. Sirve igual con la
+ * respuesta entera y con una cortada a la mitad.
+ *
+ * El rescate anterior buscaba el texto "},{" para cortar por ahí. Eso solo existe en un
+ * JSON minificado, y el modelo responde indentado: la separación real es "},
+    {". El
+ * resultado era que el rescate NUNCA funcionaba, y una respuesta cortada —que pasa apenas
+ * hay tres o cuatro fichas cargadas— se perdía entera y aparecía en pantalla como
+ * "respuesta que no se pudo leer".
+ */
+function objetosDelArreglo(json: string): unknown[] {
+  const clave = json.indexOf('"actividades"');
+  const inicio = json.indexOf("[", clave >= 0 ? clave : 0);
+  if (inicio < 0) return [];
+
+  const objetos: unknown[] = [];
+  let profundidad = 0;
+  let desde = -1;
+  let enCadena = false;
+  let escapado = false;
+
+  for (let i = inicio + 1; i < json.length; i++) {
+    const c = json[i];
+    if (enCadena) {
+      if (escapado) escapado = false;
+      else if (c === "\\") escapado = true;
+      else if (c === '"') enCadena = false;
+      continue;
+    }
+    if (c === '"') enCadena = true;
+    else if (c === "{") {
+      if (profundidad === 0) desde = i;
+      profundidad++;
+    } else if (c === "}") {
+      profundidad--;
+      if (profundidad === 0 && desde >= 0) {
+        try {
+          objetos.push(JSON.parse(json.slice(desde, i + 1)));
+        } catch {
+          // Un objeto suelto que no parsea se descarta; los demás siguen sirviendo.
+        }
+        desde = -1;
+      }
+    } else if (c === "]" && profundidad === 0) break;
+  }
+  return objetos;
+}
+
+/**
  * Interpreta la respuesta aunque venga imperfecta.
  *
- * Una generación mal cerrada no puede costar el análisis entero: si el JSON no parsea,
- * se rescatan las actividades completas que alcanzaron a salir y se descarta la que
- * quedó a medias. Es preferible entregar seis propuestas revisables que ninguna.
+ * `completa` distingue dos cosas que antes se confundían: que el modelo respondiera bien
+ * y no encontrara nada —resultado legítimo, y frecuente cuando el material describe
+ * carencias en vez de tratamientos— de que la respuesta llegara rota. La primera merece
+ * un "no encontró actividades"; la segunda, un aviso de que algo falló.
  */
-function interpretar(texto: string): ActividadPropuesta[] {
+function interpretar(texto: string): { actividades: ActividadPropuesta[]; completa: boolean } {
   const limpio = limpiarJson(texto);
   try {
-    return (JSON.parse(limpio) as { actividades?: ActividadPropuesta[] }).actividades ?? [];
+    const datos = JSON.parse(limpio) as { actividades?: ActividadPropuesta[] };
+    return { actividades: datos.actividades ?? [], completa: true };
   } catch {
-    // Se recortan objetos desde el final hasta que el conjunto vuelva a ser válido.
-    let corte = limpio.lastIndexOf("},{");
-    while (corte > 0) {
-      try {
-        const datos = JSON.parse(limpio.slice(0, corte + 1) + "]}") as {
-          actividades?: ActividadPropuesta[];
-        };
-        if (datos.actividades?.length) return datos.actividades;
-      } catch {
-        /* se sigue recortando */
-      }
-      corte = limpio.lastIndexOf("},{", corte - 1);
-    }
-    return [];
+    return {
+      actividades: objetosDelArreglo(limpio) as ActividadPropuesta[],
+      completa: false,
+    };
   }
 }
 
@@ -291,7 +358,7 @@ export async function proponerActividades(
 ): Promise<ResultadoExtraccion> {
   const vacio = {
     actividades: [],
-    fuentes: { documentos: 0, comentarios: 0, fichas: 0, inventario: 0 },
+    fuentes: { documentos: 0, comentarios: 0, fichas: 0, inventario: 0, sinCupo: 0 },
   };
   if (!process.env.GEMINI_API_KEY) {
     return { ok: false, error: "El análisis no está configurado en el servidor.", ...vacio };
@@ -321,8 +388,7 @@ export async function proponerActividades(
 
   // PDF e imágenes viajan tal cual; Word y Excel se convierten a texto antes de salir.
   const seLee = (m: string | null, tam: number | null) =>
-    (m === "application/pdf" || Boolean(m?.startsWith("image/")) || esOfficeLegible(m)) &&
-    (tam ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024;
+    analisisLoLee(m) && (tam ?? 0) <= MAX_MB_POR_DOCUMENTO * 1024 * 1024;
 
   /**
    * Convierte un archivo en las partes que entiende el modelo.
@@ -331,6 +397,8 @@ export async function proponerActividades(
    * archivo, porque ahí el modelo lee mejor que cualquier extractor —incluidos los
    * escaneados, que no tienen texto que sacar—.
    */
+  let presupuesto = PRESUPUESTO_TEXTO;
+
   async function comoPartes(
     encabezado: string,
     ruta: string,
@@ -342,8 +410,11 @@ export async function proponerActividades(
     const buf = Buffer.from(await res.arrayBuffer());
 
     if (esOfficeLegible(mimeType)) {
-      const ex = await extraerTexto(buf, mimeType);
+      // Lo que consume un documento se lo quita al siguiente: así cuatro fichas grandes
+      // no hacen una consulta desmedida, y la primera no se lleva todo el presupuesto.
+      const ex = await extraerTexto(buf, mimeType, Math.max(4_000, presupuesto));
       if (!ex.ok) return [];
+      presupuesto = Math.max(0, presupuesto - ex.texto.length);
       return [
         {
           text:
@@ -358,12 +429,36 @@ export async function proponerActividades(
     ];
   }
 
-  // Las fichas tienen prioridad sobre las evidencias: describen el proceso, que es lo que
-  // se está buscando. Las evidencias entran con lo que sobre del cupo.
-  const fichasLegibles = fichas.filter((f) => seLee(f.mimeType, f.tamano)).slice(0, MAX_DOCUMENTOS);
-  const legibles = documentos
-    .filter((d) => seLee(d.mimeType, d.tamano))
-    .slice(0, Math.max(0, MAX_DOCUMENTOS - fichasLegibles.length));
+  /**
+   * Reparte los cupos recorriendo la lista en orden de prioridad.
+   *
+   * Las fichas van antes que las evidencias porque describen el proceso, que es lo que se
+   * está buscando; una evidencia prueba un control. Lo que no alcanza a entrar se cuenta,
+   * para poder decirlo: quedarse callado hace que quien subió seis fichas y ve cuatro
+   * leídas piense que la plataforma perdió dos.
+   */
+  function repartirCupo<T extends { mimeType: string | null; tamano: number | null }>(
+    candidatos: T[],
+    cupos: { oficina: number; binarios: number }
+  ): T[] {
+    const elegidos: T[] = [];
+    for (const c of candidatos) {
+      if (!seLee(c.mimeType, c.tamano)) continue;
+      const clave = esOfficeLegible(c.mimeType) ? "oficina" : "binarios";
+      if (cupos[clave] <= 0) continue;
+      cupos[clave]--;
+      elegidos.push(c);
+    }
+    return elegidos;
+  }
+
+  const cupos = { oficina: MAX_OFICINA, binarios: MAX_BINARIOS };
+  const fichasLegibles = repartirCupo(fichas, cupos);
+  const legibles = repartirCupo(documentos, cupos);
+  const sinCupo =
+    [...fichas, ...documentos].filter((x) => seLee(x.mimeType, x.tamano)).length -
+    fichasLegibles.length -
+    legibles.length;
 
   if (comentarios.length === 0 && legibles.length === 0 && fichasLegibles.length === 0) {
     return {
@@ -485,15 +580,51 @@ export async function proponerActividades(
   }
 
   const cuerpo = await respuesta.json().catch(() => null);
+  const candidato = cuerpo?.candidates?.[0];
+  const motivoCorte: string = candidato?.finishReason ?? "";
   const texto: string =
-    cuerpo?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+    candidato?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+
   if (!texto.trim()) {
-    return { ok: false, error: "El análisis no devolvió resultados.", ...vacio };
+    // El proveedor puede devolver una respuesta vacía por filtro de contenido. Decirlo
+    // importa: no es lo mismo que el material no dé para nada.
+    const bloqueado =
+      motivoCorte === "SAFETY" ||
+      motivoCorte === "PROHIBITED_CONTENT" ||
+      Boolean(cuerpo?.promptFeedback?.blockReason);
+    console.error(`[rat] respuesta vacía · finishReason=${motivoCorte || "sin dato"}`);
+    return {
+      ok: false,
+      error: bloqueado
+        ? "El servicio de análisis rechazó el material por sus filtros de contenido."
+        : "El análisis no devolvió resultados.",
+      ...vacio,
+    };
   }
 
-  const crudas = interpretar(texto);
+  const seQuedoSinEspacio = motivoCorte === "MAX_TOKENS";
+  const { actividades: crudas, completa } = interpretar(texto);
+
   if (crudas.length === 0) {
-    return { ok: false, error: "El análisis devolvió una respuesta que no se pudo leer.", ...vacio };
+    if (completa) {
+      // Respondió bien y no encontró nada. Es un resultado válido, no una falla: quien
+      // llama lo explica con sus palabras.
+      return { ok: true, actividades: [], fuentes: fuentesLeidas() };
+    }
+    console.error(
+      `[rat] no se pudo interpretar · finishReason=${motivoCorte} · ${texto.length} caracteres · inicio: ${texto.slice(0, 200)}`
+    );
+    return {
+      ok: false,
+      error: seQuedoSinEspacio
+        ? "El análisis se quedó sin espacio antes de terminar de responder y no alcanzó a completar ni una actividad. Suele pasar con muchas fichas cargadas a la vez: prueba dejando menos."
+        : "El análisis devolvió una respuesta que no se pudo leer.",
+      ...vacio,
+    };
+  }
+
+  if (seQuedoSinEspacio) {
+    console.error(`[rat] respuesta cortada · se rescataron ${crudas.length} actividades`);
   }
 
   const codigosValidos = new Set(vocabulario.inventario.map((d) => d.codigo));
@@ -511,16 +642,17 @@ export async function proponerActividades(
     // una celda vacía que igual pisaría el hueco.
     .map((a) => (a.idsInventario && !a.idsInventario.valor ? { ...a, idsInventario: undefined } : a));
 
-  return {
-    ok: true,
-    actividades,
-    fuentes: {
+  return { ok: true, actividades, parcial: seQuedoSinEspacio, fuentes: fuentesLeidas() };
+
+  function fuentesLeidas() {
+    return {
       documentos: legibles.length,
       comentarios: comentarios.length,
       fichas: fichasLegibles.length,
       inventario: vocabulario.inventario.length,
-    },
-  };
+      sinCupo,
+    };
+  }
 }
 
 /**

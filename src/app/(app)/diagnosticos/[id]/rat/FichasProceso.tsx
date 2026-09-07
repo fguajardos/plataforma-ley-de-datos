@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { MAX_EVIDENCIA_MB, MAX_EVIDENCIA_BYTES } from "@/lib/constants";
+import { analisisLoLee, motivoNoLegible } from "@/lib/documentos";
 import { prepararSubidaFicha, registrarFicha, eliminarFicha } from "./fichas-actions";
 
 export type FichaVM = {
@@ -25,22 +26,6 @@ function peso(bytes: number | null): string {
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
 }
 
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-/**
- * Qué puede leer el análisis. PDF e imágenes van tal cual al modelo; de Word y Excel se
- * extrae el texto en el servidor. Quedan fuera los formatos antiguos y las presentaciones.
- */
-function legible(mime: string | null): boolean {
-  return (
-    mime === "application/pdf" ||
-    Boolean(mime?.startsWith("image/")) ||
-    mime === DOCX ||
-    mime === XLSX
-  );
-}
-
 export function FichasProceso({
   empresaId,
   fichas,
@@ -56,6 +41,7 @@ export function FichasProceso({
   const [subiendo, setSubiendo] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [form, setForm] = useState({ nombre: "", descripcion: "", areaId: "" });
+  const [avisoFormato, setAvisoFormato] = useState<string | null>(null);
   const archivoRef = useRef<HTMLInputElement>(null);
 
   async function subir() {
@@ -101,6 +87,7 @@ export function FichasProceso({
         return;
       }
       setForm({ nombre: "", descripcion: "", areaId: "" });
+      setAvisoFormato(null);
       if (archivoRef.current) archivoRef.current.value = "";
       setAbrir(false);
       setMsg({ ok: true, texto: "Ficha cargada." });
@@ -184,13 +171,25 @@ export function FichasProceso({
               id="ficha-archivo"
               ref={archivoRef}
               type="file"
+              // Se avisa al elegir el archivo y no después de subirlo: descubrir que el
+              // análisis no lo lee cuando ya está guardado obliga a repetir todo el
+              // trámite, y es justo el momento en que la persona todavía tiene el
+              // documento abierto para exportarlo.
+              onChange={(e) => setAvisoFormato(motivoNoLegible(e.target.files?.[0]?.type ?? null))}
               className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Hasta {MAX_EVIDENCIA_MB} MB. El análisis lee <strong>PDF, imágenes, Word (.docx) y
-              Excel (.xlsx)</strong>. Los formatos antiguos (.doc, .xls) y las presentaciones hay
-              que exportarlos a PDF.
-            </p>
+            {avisoFormato ? (
+              <p className="mt-1 rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs text-orange-800">
+                <strong>El análisis no va a poder leerlo</strong>: {avisoFormato}. Puedes subirlo
+                igual —queda en el expediente— pero no aportará al RAT.
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">
+                Hasta {MAX_EVIDENCIA_MB} MB. El análisis lee <strong>PDF, imágenes, Word (.docx) y
+                Excel (.xlsx)</strong>. Los formatos antiguos (.doc, .xls) y las presentaciones hay
+                que exportarlos a PDF.
+              </p>
+            )}
           </div>
           <Button onClick={subir} disabled={subiendo}>
             {subiendo ? "Subiendo…" : "Cargar ficha"}
@@ -205,9 +204,12 @@ export function FichasProceso({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-slate-800">{f.nombre}</span>
-                  {!legible(f.mimeType) && (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                      el análisis no lo lee
+                  {!analisisLoLee(f.mimeType) && (
+                    <span
+                      className="rounded-full bg-orange-50 px-2 py-0.5 text-xs text-orange-700"
+                      title="El archivo queda guardado en el expediente, pero no aporta al RAT."
+                    >
+                      el análisis no lo lee: {motivoNoLegible(f.mimeType)}
                     </span>
                   )}
                 </div>

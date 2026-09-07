@@ -1,4 +1,9 @@
 import "server-only";
+import { DOCX, XLSX, esOfficeLegible, motivoNoLegible } from "@/lib/documentos";
+
+// Qué formatos se leen y por qué no los otros vive en `@/lib/documentos`, sin
+// "server-only", porque la pantalla de carga tiene que decir exactamente lo mismo.
+export { esOfficeLegible, motivoNoLegible };
 
 // Extracción de texto de documentos de Office.
 //
@@ -14,48 +19,25 @@ import "server-only";
 /** Un prompt gigante no mejora la extracción y sí puede reventar el presupuesto. */
 const MAX_CARACTERES = 40_000;
 
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
 export type Extraccion =
   | { ok: true; texto: string; truncado: boolean }
   | { ok: false; motivo: string };
 
-/** ¿Es un formato de Office del que sabemos sacar texto? */
-export function esOfficeLegible(mimeType: string | null): boolean {
-  return mimeType === DOCX || mimeType === XLSX;
-}
-
-/**
- * Formatos que NO se pueden leer y hay que exportar a PDF.
- *
- * Se distinguen de los legibles para poder decírselo al consultor con precisión: "este
- * Word sí se lee, este .doc antiguo no" es una instrucción accionable; "puede que no
- * funcione" no lo es.
- */
-export function motivoNoLegible(mimeType: string | null): string | null {
-  if (!mimeType) return "sin tipo de archivo reconocible";
-  if (mimeType === "application/msword") return "es un .doc antiguo";
-  if (mimeType === "application/vnd.ms-excel") return "es un .xls antiguo";
-  if (mimeType.includes("presentationml")) return "es una presentación";
-  return null;
-}
-
-function recortar(texto: string): { texto: string; truncado: boolean } {
+function recortar(texto: string, tope: number): { texto: string; truncado: boolean } {
   const limpio = texto.replace(/\n{3,}/g, "\n\n").trim();
-  return limpio.length > MAX_CARACTERES
-    ? { texto: limpio.slice(0, MAX_CARACTERES), truncado: true }
+  return limpio.length > tope
+    ? { texto: limpio.slice(0, tope), truncado: true }
     : { texto: limpio, truncado: false };
 }
 
-async function deWord(buf: Buffer): Promise<Extraccion> {
+async function deWord(buf: Buffer, tope: number): Promise<Extraccion> {
   const mammoth = await import("mammoth");
   const { value } = await mammoth.extractRawText({ buffer: buf });
   if (!value.trim()) return { ok: false, motivo: "el documento no tiene texto" };
-  return { ok: true, ...recortar(value) };
+  return { ok: true, ...recortar(value, tope) };
 }
 
-async function deExcel(buf: Buffer): Promise<Extraccion> {
+async function deExcel(buf: Buffer, tope: number): Promise<Extraccion> {
   const ExcelJS = (await import("exceljs")).default;
   const libro = new ExcelJS.Workbook();
   await libro.xlsx.load(buf as unknown as ArrayBuffer);
@@ -81,14 +63,23 @@ async function deExcel(buf: Buffer): Promise<Extraccion> {
   });
 
   if (partes.length === 0) return { ok: false, motivo: "la planilla está vacía" };
-  return { ok: true, ...recortar(partes.join("\n")) };
+  return { ok: true, ...recortar(partes.join("\n"), tope) };
 }
 
-/** Saca el texto de un Word o un Excel. Devuelve el motivo si no se puede. */
-export async function extraerTexto(buf: Buffer, mimeType: string | null): Promise<Extraccion> {
+/**
+ * Saca el texto de un Word o un Excel. Devuelve el motivo si no se puede.
+ *
+ * `tope` reparte un presupuesto entre varios documentos: cuatro fichas de 40.000
+ * caracteres cada una hacen una consulta lenta y cara sin mejorar la extracción.
+ */
+export async function extraerTexto(
+  buf: Buffer,
+  mimeType: string | null,
+  tope: number = MAX_CARACTERES
+): Promise<Extraccion> {
   try {
-    if (mimeType === DOCX) return await deWord(buf);
-    if (mimeType === XLSX) return await deExcel(buf);
+    if (mimeType === DOCX) return await deWord(buf, tope);
+    if (mimeType === XLSX) return await deExcel(buf, tope);
     return { ok: false, motivo: motivoNoLegible(mimeType) ?? "formato no soportado" };
   } catch (e) {
     // Un archivo corrupto o protegido con contraseña no puede tumbar el análisis entero.

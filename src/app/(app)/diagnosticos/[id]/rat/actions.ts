@@ -227,7 +227,15 @@ export type PropuestaResult = {
   error?: string;
   modo?: ModoAnalisis;
   actividades?: ActividadPropuesta[];
-  fuentes?: { documentos: number; comentarios: number; fichas: number; inventario: number };
+  /** El analisis se quedo sin espacio: lo que llega es parte de la respuesta. */
+  parcial?: boolean;
+  fuentes?: {
+    documentos: number;
+    comentarios: number;
+    fichas: number;
+    inventario: number;
+    sinCupo: number;
+  };
 };
 
 /**
@@ -260,7 +268,7 @@ export async function proponerDesdeElLevantamiento(
           : "El análisis no encontró actividades de tratamiento sustentables en el material. Suele pasar cuando lo entregado describe carencias en vez de tratamientos.",
     };
   }
-  return { ok: true, modo, actividades: r.actividades, fuentes: r.fuentes };
+  return { ok: true, modo, actividades: r.actividades, parcial: r.parcial, fuentes: r.fuentes };
 }
 
 // El análisis manda claves libres: se validan por forma y después se filtran contra la

@@ -11,7 +11,13 @@ import {
   aceptarComplementos,
 } from "./actions";
 
-type Fuentes = { documentos: number; comentarios: number; fichas: number; inventario: number };
+type Fuentes = {
+  documentos: number;
+  comentarios: number;
+  fichas: number;
+  inventario: number;
+  sinCupo: number;
+};
 
 /**
  * Revisión de lo que el análisis propuso.
@@ -40,6 +46,7 @@ export function PropuestaRat({
   const [propuestas, setPropuestas] = useState<ActividadPropuesta[] | null>(null);
   const [elegidas, setElegidas] = useState<Set<number>>(new Set());
   const [fuentes, setFuentes] = useState<Fuentes | null>(null);
+  const [parcial, setParcial] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const completando = modo === "completar";
@@ -56,6 +63,7 @@ export function PropuestaRat({
       }
       setPropuestas(res.actividades ?? []);
       setFuentes(res.fuentes ?? null);
+      setParcial(Boolean(res.parcial));
       setElegidas(new Set((res.actividades ?? []).map((_, i) => i)));
     });
   }
@@ -146,6 +154,13 @@ export function PropuestaRat({
                   {fuentes.inventario > 0 && ` · con el inventario de ${fuentes.inventario} datos`}
                 </span>
               )}
+              {fuentes && fuentes.sinCupo > 0 && (
+                <span className="text-orange-700">
+                  {" "}
+                  · {fuentes.sinCupo} {fuentes.sinCupo === 1 ? "archivo quedó" : "archivos quedaron"}{" "}
+                  fuera de esta pasada por tamaño
+                </span>
+              )}
             </p>
             <Button onClick={aceptar} disabled={pending || elegidas.size === 0}>
               {pending
@@ -155,6 +170,14 @@ export function PropuestaRat({
                   : `Agregar ${elegidas.size} al registro`}
             </Button>
           </div>
+
+          {parcial && (
+            <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+              El análisis se quedó sin espacio antes de terminar: esto es{" "}
+              <strong>parte</strong> de lo que encontró, no todo. Lo que ves sirve igual;
+              para el resto, vuelve a correrlo con menos fichas cargadas a la vez.
+            </p>
+          )}
 
           <ul className="mt-3 space-y-3">
             {propuestas.map((a, i) => (
