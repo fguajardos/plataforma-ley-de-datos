@@ -1,7 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { empresaScope, esStaffP360, sinAccesoAEmpresa } from "@/lib/session";
+import { empresaScope, puedeRevisarDominios, sinAccesoAEmpresa } from "@/lib/session";
 import { calcularMadurez, type DominioInput } from "@/lib/engines/madurez";
 import { respuestaCompleta, type Role } from "@/lib/constants";
 
@@ -242,6 +242,11 @@ export async function getDiagnosticoDominio(
   if (!diag) notFound();
   if (sinAccesoAEmpresa(session, diag.empresaId)) notFound();
 
+  // Quién revisa decide qué se carga, no el rol. La contraparte del cliente que revisa el
+  // levantamiento necesita ver los aportes de todos para poder consolidar: sin eso ve los
+  // botones de validar pero no lo que tendría que estar validando.
+  const revisa = await puedeRevisarDominios(diag.empresaId);
+
   const dd = await prisma.diagnosticoDominio.findFirst({
     where: { diagnosticoId, dominio: { orden: dominioOrden } },
     include: {
@@ -255,8 +260,8 @@ export async function getDiagnosticoDominio(
           pregunta: true,
           evidencias: true,
           // Aportes individuales: el participante solo recibe el suyo (responde a
-          // ciegas); el consultor los recibe todos para poder consolidar.
-          aportes: esStaffP360(session.user.role)
+          // ciegas); quien revisa los recibe todos para poder consolidar.
+          aportes: revisa
             ? {
                 include: { user: { select: { id: true, nombre: true, cargo: true } } },
                 orderBy: { user: { nombre: "asc" } },
