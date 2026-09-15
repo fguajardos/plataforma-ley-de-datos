@@ -58,6 +58,16 @@ export type ActividadPropuesta = Omit<
   area: string | null;
   /** En modo "completar", la fila del registro a la que corresponde la propuesta. */
   codigo?: string | null;
+  /**
+   * El código de la fila del registro donde CABE este hallazgo, si cabe en alguna.
+   *
+   * Es la decisión que gobierna el módulo: la matriz tiene 28 actividades y se quiere que
+   * siga teniendo 28. Un hallazgo que cabe en una existente la enriquece; solo lo que no
+   * calza con ninguna se propone como fila nueva, y eso se confirma a mano.
+   */
+  perteneceA?: string | null;
+  /** Por qué cabe ahí, o por qué no cabe en ninguna. */
+  motivoEncaje?: string;
   datosSensibles: boolean;
   transferenciaInternacional: boolean;
 };
@@ -203,8 +213,18 @@ async function vocabularioDeLaEmpresa(empresaId: string) {
  */
 async function yaRegistradas(empresaId: string) {
   return prisma.tratamientoDato.findMany({
-    where: { empresaId },
-    select: { codigo: true, nombre: true, finalidad: true },
+    where: {
+      empresaId,
+      // Las filas vacías quedan fuera de la lista de candidatas. Una fila sin finalidad y
+      // sin proceso es un cascarón que alguien creó y no llenó, y ofrecerla como destino
+      // la convierte en vertedero: el análisis mete ahí lo que no sabe dónde poner, y la
+      // decisión de crecer el registro se toma sola y mal.
+      NOT: { AND: [{ finalidad: null }, { procesoId: null }] },
+    },
+    // El PROCESO es el criterio más fuerte para saber si un hallazgo cabe en una fila que
+    // ya existe: dos actividades del mismo proceso son casi siempre la misma, llamada de
+    // dos maneras. El nombre y la finalidad desempatan.
+    select: { codigo: true, nombre: true, finalidad: true, procesos: true, proceso: { select: { codigo: true } } },
     orderBy: [{ codigo: "asc" }, { nombre: "asc" }],
     take: 200,
   });
@@ -245,7 +265,7 @@ async function filasPorCompletar(empresaId: string) {
 const GLOSARIO = CAMPOS_ANALIZABLES.map((c) => `- ${c.clave} (${c.etiqueta}): ${c.ayuda}`).join("\n");
 
 /** La forma exacta del JSON, generada de la lista de campos para que no se desincronicen. */
-const FORMA_JSON = `{"actividades":[{"nombre":"...","area":"... o null","datosSensibles":false,"transferenciaInternacional":false,${CAMPOS_ANALIZABLES.map(
+const FORMA_JSON = `{"actividades":[{"nombre":"...","area":"... o null","perteneceA":"RAT-013 o null","motivoEncaje":"...","datosSensibles":false,"transferenciaInternacional":false,${CAMPOS_ANALIZABLES.map(
   (c) => `"${c.clave}":{"valor":"...","cita":"..."}`
 ).join(",")}}]}`;
 
@@ -289,9 +309,18 @@ ${REGLAS}`;
 
   return `${COMUN}
 
-Tu tarea: leer el material entregado por la empresa y proponer las ACTIVIDADES DE TRATAMIENTO que se desprenden de él.
+Tu tarea: leer el material y, por cada ACTIVIDAD DE TRATAMIENTO que encuentres, CLASIFICARLA contra el registro actual que se te entrega.
 
-Si se te entrega una lista de actividades ya registradas, NO propongas ninguna que ya esté ahí, ni con otro nombre ni partida en dos. El material se relee entero cada vez —incluidas las fichas de siempre— y repetir lo que ya existe llena el registro de copias que despues hay que borrar a mano. Ante la duda de si una actividad es la misma, omitela.
+Por cada hallazgo devuelve "perteneceA":
+
+  · El CÓDIGO de la fila del registro donde cabe —"RAT-013"— cuando el hallazgo es esa misma actividad, o una parte de ella, o la misma llamada de otro modo. En ese caso lo que aportas son los CAMPOS que enriquecen esa fila.
+  · null SOLO cuando no cabe en ninguna de las filas del registro.
+
+Y explica la decisión en "motivoEncaje", en una frase.
+
+El criterio más fuerte es el PROCESO: si el hallazgo ocurre dentro de un proceso que ya tiene fila, cabe en esa fila. Un subproceso NO es una actividad aparte —"S-3.6.1 Recepcionar Documentos de Cobro" es parte de "Cuentas por pagar"—, es un detalle de la que ya existe.
+
+ANTE LA DUDA, HAZLO CABER. El registro de esta empresa tiene un número de actividades que se definió con criterio, y hacerlo crecer es una decisión que toma una persona, no tú. Proponer una fila nueva que en realidad era un detalle de otra obliga a alguien a borrarla después; aportar un campo a la fila equivocada se corrige leyendo la cita.
 
 ${REGLAS}`;
 }
@@ -539,13 +568,13 @@ export async function proponerActividades(
   if (modo === "nuevas" && registradas.length > 0) {
     partes.push({
       text:
-        "MATERIAL 0B — ACTIVIDADES QUE YA ESTÁN EN EL REGISTRO. NO las vuelvas a proponer, " +
-        "ni con otro nombre. Si el material que leas se refiere a una de estas, omítela: " +
-        "completar sus campos es otra tarea.\n\n" +
+        "MATERIAL 0B — EL REGISTRO ACTUAL. Cada hallazgo tuyo tiene que clasificarse contra " +
+        "esta lista: o cabe en una de estas filas, o no cabe en ninguna.\n\n" +
         registradas
           .map(
             (r) =>
               `[${r.codigo ?? "sin código"}] ${r.nombre}` +
+              (r.proceso?.codigo || r.procesos ? `\n  Proceso: ${r.proceso?.codigo ?? r.procesos}` : "") +
               (r.finalidad ? `\n  Finalidad: ${r.finalidad.slice(0, 200)}` : "")
           )
           .join("\n"),
@@ -689,6 +718,9 @@ export async function proponerActividades(
   }
 
   const codigosValidos = new Set(vocabulario.inventario.map((d) => d.codigo));
+  // Los códigos de fila que existen de verdad. Un "perteneceA" inventado mandaría el
+  // aporte a ninguna parte, y en pantalla se vería como una decisión tomada.
+  const filasValidas = new Set(registradas.map((r) => r.codigo).filter(Boolean) as string[]);
   const actividades = crudas
     // Sin nombre no es una actividad, y sin cita no es verificable: ambas se descartan.
     .filter((a) => a?.nombre?.trim())
@@ -698,6 +730,10 @@ export async function proponerActividades(
       datosSensibles: Boolean(a.datosSensibles),
       transferenciaInternacional: Boolean(a.transferenciaInternacional),
       ...(a.idsInventario ? { idsInventario: depurarCodigos(a.idsInventario, codigosValidos) } : {}),
+      perteneceA:
+        a.perteneceA && filasValidas.has(a.perteneceA.toUpperCase().trim())
+          ? a.perteneceA.toUpperCase().trim()
+          : null,
     }))
     // Un idsInventario que quedó sin ningún código válido se elimina, en vez de escribir
     // una celda vacía que igual pisaría el hueco.

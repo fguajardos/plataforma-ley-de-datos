@@ -74,10 +74,17 @@ export function PropuestaRat({
       setParcial(Boolean(res.parcial));
       // Lo que ya está en el registro llega desmarcado: se muestra para que se vea que el
       // análisis lo encontró, pero agregarlo otra vez es lo que hay que evitar.
+      // Lo que cabe en una fila existente entra marcado: enriquecerla no cambia el tamaño
+      // del registro. Lo que crearía una fila nueva entra DESMARCADO, porque hacer crecer
+      // la matriz es una decisión, no un resultado del análisis.
       setElegidas(
         new Set(
           (res.actividades ?? [])
-            .map((a, i) => (m === "completar" || !repetida(a.nombre) ? i : -1))
+            .map((a, i) => {
+              if (m === "completar") return i;
+              if (a.perteneceA) return i;
+              return -1;
+            })
             .filter((i) => i >= 0)
         )
       );
@@ -93,15 +100,20 @@ export function PropuestaRat({
         ? await aceptarComplementos({ empresaId, actividades: seleccion })
         : await aceptarPropuesta({ empresaId, actividades: seleccion });
       if (res.ok) {
+        const partes = [
+          res.enriquecidos
+            ? `${res.enriquecidos} ${res.enriquecidos === 1 ? "actividad existente enriquecida" : "actividades existentes enriquecidas"}`
+            : null,
+          res.creados
+            ? `${res.creados} ${res.creados === 1 ? "actividad nueva agregada" : "actividades nuevas agregadas"} al registro`
+            : null,
+          res.omitidos ? `${res.omitidos} omitidas por estar ya en el registro` : null,
+        ].filter(Boolean);
         setMsg({
           ok: true,
-          texto:
-            (completando
-              ? `${res.creados} ${res.creados === 1 ? "actividad completada" : "actividades completadas"} con lo que el material sustentaba.`
-              : `${res.creados} ${res.creados === 1 ? "actividad agregada" : "actividades agregadas"} al registro, como borrador.`) +
-            (res.omitidos
-              ? ` Se omitieron ${res.omitidos} que ya estaban en el registro.`
-              : ""),
+          texto: completando
+            ? `${res.creados} ${res.creados === 1 ? "actividad completada" : "actividades completadas"} con lo que el material sustentaba.`
+            : `${partes.join(" · ")}.`,
         });
         setPropuestas(null);
         router.refresh();
@@ -208,6 +220,22 @@ export function PropuestaRat({
             </Button>
           </div>
 
+          {!completando && (
+            <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+              {propuestas.filter((a) => a.perteneceA).length} de {propuestas.length} caben en
+              actividades que ya existen y solo les aportan campos.{" "}
+              {propuestas.filter((a) => !a.perteneceA).length > 0 ? (
+                <>
+                  Las otras {propuestas.filter((a) => !a.perteneceA).length}{" "}
+                  <strong>agregarían filas nuevas</strong> y llegan desmarcadas: hacer crecer el
+                  registro es una decisión tuya, no un resultado del análisis.
+                </>
+              ) : (
+                <>Ninguna agregaría una fila nueva.</>
+              )}
+            </p>
+          )}
+
           {parcial && (
             <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
               El análisis se quedó sin espacio antes de terminar: esto es{" "}
@@ -247,6 +275,16 @@ export function PropuestaRat({
                         </span>
                       )}
                       <span className="text-sm font-semibold text-slate-800">{a.nombre}</span>
+                      {!completando &&
+                        (a.perteneceA ? (
+                          <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                            cabe en {a.perteneceA}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-700">
+                            agregaría una fila nueva
+                          </span>
+                        ))}
                       {!completando && repetida(a.nombre) && (
                         <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
                           ya está en el registro
@@ -256,6 +294,10 @@ export function PropuestaRat({
                       {a.datosSensibles && <Badge color="orange">Datos sensibles</Badge>}
                       {a.transferenciaInternacional && <Badge color="blue">Sale del país</Badge>}
                     </span>
+
+                    {!completando && a.motivoEncaje && (
+                      <p className="mt-1 text-xs italic text-slate-500">{a.motivoEncaje}</p>
+                    )}
 
                     <dl className="mt-2 space-y-1.5">
                       {CAMPOS_ANALIZABLES.map((c) => {

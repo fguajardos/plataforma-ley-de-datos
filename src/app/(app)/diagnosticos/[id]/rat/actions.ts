@@ -18,7 +18,14 @@ import {
   type ModoAnalisis,
 } from "@/lib/engines/extraccion-rat";
 
-export type RatResult = { ok: boolean; error?: string; creados?: number; omitidos?: number };
+export type RatResult = {
+  ok: boolean;
+  error?: string;
+  creados?: number;
+  omitidos?: number;
+  /** Filas existentes que recibieron campos nuevos, sin agregar actividades al registro. */
+  enriquecidos?: number;
+};
 
 /**
  * El RAT lo llena la empresa; el consultor lo revisa. El Responsable de Dominio queda
@@ -291,6 +298,8 @@ const propuestaSchema = z
   .object({
     nombre: z.string().trim().min(3).max(200),
     codigo: z.string().max(40).nullish(),
+    perteneceA: z.string().max(40).nullish(),
+    motivoEncaje: z.string().max(500).nullish(),
     area: z.string().nullish(),
     datosSensibles: z.boolean(),
     transferenciaInternacional: z.boolean(),
@@ -337,7 +346,13 @@ function fuenteDe(a: Propuesta): string | null {
   return citas.length > 0 ? `Propuesto por el análisis del material — ${citas.join(" · ")}`.slice(0, 4000) : null;
 }
 
-/** Crea en el registro las actividades que el consultor aceptó. Siempre como BORRADOR. */
+/**
+ * Escribe lo que el consultor aceptó.
+ *
+ * Un hallazgo que cabe en una fila existente la ENRIQUECE; solo el que no calza con
+ * ninguna crea una fila. Es la regla que mantiene el registro en el número de actividades
+ * que se definió con criterio, en vez de dejarlo crecer con cada pasada del análisis.
+ */
 export async function aceptarPropuesta(
   input: z.input<typeof aceptarSchema>
 ): Promise<RatResult> {
@@ -346,6 +361,52 @@ export async function aceptarPropuesta(
   const { empresaId, actividades } = parsed.data;
   const { error } = await permiso(empresaId);
   if (error) return { ok: false, error };
+
+  // Las que caben en una fila existente se escriben ahí, con la misma regla de siempre:
+  // solo en los huecos, nunca encima de lo que alguien ya escribió.
+  const caben = actividades.filter((a) => a.perteneceA);
+  const nuevasPropuestas = actividades.filter((a) => !a.perteneceA);
+
+  let enriquecidos = 0;
+  if (caben.length > 0) {
+    const porCodigo = new Map(
+      (
+        await prisma.tratamientoDato.findMany({
+          where: { empresaId, codigo: { in: caben.map((a) => a.perteneceA!) } },
+          select: { id: true, codigo: true },
+        })
+      ).map((t) => [t.codigo!, t.id])
+    );
+    for (const a of caben) {
+      const id = porCodigo.get(a.perteneceA!);
+      if (!id) continue;
+      const actual = await prisma.tratamientoDato.findUnique({
+        where: { id },
+        select: Object.fromEntries(CAMPOS_ANALIZABLES.map((c) => [c.clave, true])) as Record<string, true>,
+      });
+      if (!actual) continue;
+      const datos: Record<string, string | null> = {};
+      for (const [clave, valor] of Object.entries(camposDe(a))) {
+        const previo = (actual as Record<string, unknown>)[clave];
+        if (typeof previo === "string" && previo.trim()) continue;
+        datos[clave] = valor;
+      }
+      if (Object.keys(datos).length === 0) continue;
+      const fuente = fuenteDe(a);
+      await prisma.tratamientoDato.update({
+        where: { id },
+        data: { ...datos, ...(fuente ? { fuenteDiseno: fuente } : {}) },
+      });
+      enriquecidos++;
+    }
+  }
+
+  if (nuevasPropuestas.length === 0) {
+    revalidatePath("/diagnosticos", "layout");
+    return enriquecidos > 0
+      ? { ok: true, creados: 0, enriquecidos }
+      : { ok: false, error: "Nada que escribir: esos campos ya estaban llenos." };
+  }
 
   const areas = await prisma.area.findMany({
     where: { empresaId },
@@ -364,16 +425,19 @@ export async function aceptarPropuesta(
     ).map((t) => claveNombre(t.nombre))
   );
 
-  const nuevas = actividades.filter((a) => {
+  const nuevas = nuevasPropuestas.filter((a) => {
     const clave = claveNombre(a.nombre);
     if (yaExisten.has(clave)) return false;
     yaExisten.add(clave);
     return true;
   });
-  const omitidos = actividades.length - nuevas.length;
+  const omitidos = nuevasPropuestas.length - nuevas.length;
 
   if (nuevas.length === 0) {
-    return { ok: false, error: "Todas esas actividades ya están en el registro.", omitidos };
+    revalidatePath("/diagnosticos", "layout");
+    return enriquecidos > 0
+      ? { ok: true, creados: 0, enriquecidos, omitidos }
+      : { ok: false, error: "Todas esas actividades ya están en el registro.", omitidos };
   }
 
   const desde = await siguienteCorrelativo(empresaId);
@@ -395,7 +459,7 @@ export async function aceptarPropuesta(
   });
 
   revalidatePath("/diagnosticos", "layout");
-  return { ok: true, creados: nuevas.length, omitidos };
+  return { ok: true, creados: nuevas.length, omitidos, enriquecidos };
 }
 
 /**
