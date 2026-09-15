@@ -3,6 +3,7 @@ import { requireSession, sinAccesoAEmpresa } from "@/lib/session";
 import { ratDeEmpresa, inventarioDeEmpresa } from "@/lib/data/rat";
 import {
   CAMPOS_RAT,
+  avanceValidacion,
   faltantesDe,
   etiquetaEstado,
   POR_VALIDAR,
@@ -112,6 +113,21 @@ function columnas(): Columna[] {
       titulo: "Campos obligatorios pendientes",
       ancho: 40,
       valor: (t) => faltantesDe(t).map((c) => c.etiqueta).join(", "),
+    },
+    // Las dos últimas no vienen de la matriz del cliente: dicen en qué estado está el
+    // trabajo sobre esa fila, que es lo que no se puede leer mirando las celdas.
+    {
+      titulo: "¿Proceso levantado?",
+      ancho: 14,
+      valor: (t) => (t.levantado ? "Sí, con ficha cargada" : t.procesoCodigo ? "No" : "Sin proceso"),
+    },
+    {
+      titulo: "Campos validados",
+      ancho: 14,
+      valor: (t) => {
+        const { validados, conContenido } = avanceValidacion(t);
+        return conContenido === 0 ? "" : `${validados} de ${conContenido}`;
+      },
     },
   ];
 }

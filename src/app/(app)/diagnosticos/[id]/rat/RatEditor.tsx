@@ -3,12 +3,22 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Badge, Input, Textarea, Label, Select } from "@/components/ui";
-import { CAMPOS_RAT, ESTADOS_RAT, faltantesDe, type TratamientoPlano } from "@/lib/rat";
+import type { CampoClave } from "@/lib/rat";
+import {
+  CAMPOS_RAT,
+  ESTADOS_RAT,
+  avanceValidacion,
+  faltantesDe,
+  type TratamientoPlano,
+} from "@/lib/rat";
 import {
   guardarTratamiento,
   crearTratamiento,
   eliminarTratamiento,
   generarBorradorRat,
+  validarCampoRat,
+  quitarValidacionCampoRat,
+  validarActividadRat,
 } from "./actions";
 
 const ESTADOS = Object.fromEntries(
@@ -101,18 +111,32 @@ export function RatEditor({
                       )}
                       <span className="text-sm font-medium text-slate-800">{t.nombre}</span>
                       <Badge color={est.color}>{est.label}</Badge>
+                      {t.levantado ? (
+                        <Badge color="green">Proceso levantado</Badge>
+                      ) : (
+                        t.procesoCodigo && <Badge color="slate">Sin ficha</Badge>
+                      )}
                       {t.datosSensibles && <Badge color="orange">Datos sensibles</Badge>}
                       {t.transferenciaInternacional && (
                         <Badge color="blue">Transferencia internacional</Badge>
                       )}
                     </span>
                     <span className="mt-0.5 block text-xs text-slate-400">
-                      {t.areaNombre ?? "Sin área asignada"}
+                      {t.procesoCodigo && (
+                        <span className="font-mono text-slate-500">{t.procesoCodigo} · </span>
+                      )}
+                      {t.areaPropuesta ?? t.areaNombre ?? "Sin área asignada"}
                       {faltan.length > 0
                         ? ` · faltan ${faltan.length} de ${
                             CAMPOS_RAT.filter((c) => c.obligatorio).length
                           } campos obligatorios`
                         : " · completa"}
+                      {(() => {
+                        const { validados, conContenido } = avanceValidacion(t);
+                        return conContenido > 0
+                          ? ` · ${validados} de ${conContenido} campos validados`
+                          : "";
+                      })()}
                     </span>
                   </span>
                   <span className="shrink-0 text-xs text-slate-400">
@@ -128,6 +152,13 @@ export function RatEditor({
                     pending={pending}
                     onGuardar={(datos) => correr(() => guardarTratamiento(datos))}
                     onEliminar={() => correr(() => eliminarTratamiento(t.id))}
+                    onValidarCampo={(campo) =>
+                      correr(() => validarCampoRat({ tratamientoId: t.id, campo }))
+                    }
+                    onQuitarValidacion={(campo) =>
+                      correr(() => quitarValidacionCampoRat({ tratamientoId: t.id, campo }))
+                    }
+                    onValidarTodo={() => correr(() => validarActividadRat(t.id))}
                   />
                 )}
               </li>
@@ -148,6 +179,9 @@ function Formulario({
   pending,
   onGuardar,
   onEliminar,
+  onValidarCampo,
+  onQuitarValidacion,
+  onValidarTodo,
 }: {
   t: TratamientoPlano;
   areas: Area[];
@@ -155,6 +189,9 @@ function Formulario({
   pending: boolean;
   onGuardar: (d: Datos) => void;
   onEliminar: () => void;
+  onValidarCampo: (campo: CampoClave) => void;
+  onQuitarValidacion: (campo: CampoClave) => void;
+  onValidarTodo: () => void;
 }) {
   // Se arma de la lista de campos: agregar una columna al registro no debería obligar a
   // tocar el formulario, y cuando obligaba, se olvidaba.
@@ -252,6 +289,8 @@ function Formulario({
           if (soloTransferencia && !f.transferenciaInternacional) return null;
           const valor = String(f[c.clave] ?? "");
           const vacioObligatorio = c.obligatorio && !valor.trim();
+          // La validación se lee del servidor, no del formulario: vale sobre lo guardado.
+          const validado = t.validados[c.clave];
           return (
             <div key={c.clave} className={c.ancho === "largo" ? "md:col-span-2" : ""}>
               <Label htmlFor={`${c.clave}-${t.id}`}>
@@ -299,6 +338,54 @@ function Formulario({
                   Lo acredita: {c.evidencia}
                 </p>
               )}
+              {valor.trim() && (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  {validado?.vigente ? (
+                    <>
+                      <span className="text-green-700">
+                        ✓ Validado{validado.por ? ` por ${validado.por}` : ""} · {validado.en}
+                      </span>
+                      {puedeEditar && (
+                        <button
+                          type="button"
+                          onClick={() => onQuitarValidacion(c.clave)}
+                          disabled={pending}
+                          className="text-slate-400 underline underline-offset-2 hover:text-slate-700 disabled:opacity-50"
+                        >
+                          quitar
+                        </button>
+                      )}
+                    </>
+                  ) : validado ? (
+                    <>
+                      <span className="text-orange-700">
+                        Se validó el {validado.en}, pero el texto cambió desde entonces.
+                      </span>
+                      {puedeEditar && (
+                        <button
+                          type="button"
+                          onClick={() => onValidarCampo(c.clave)}
+                          disabled={pending}
+                          className="font-medium text-brand-600 underline underline-offset-2 hover:text-brand-700 disabled:opacity-50"
+                        >
+                          volver a validar
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    puedeEditar && (
+                      <button
+                        type="button"
+                        onClick={() => onValidarCampo(c.clave)}
+                        disabled={pending}
+                        className="text-slate-500 underline underline-offset-2 hover:text-brand-600 disabled:opacity-50"
+                      >
+                        Dar por validado este campo
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -309,6 +396,11 @@ function Formulario({
           <Button onClick={() => onGuardar(f)} disabled={pending}>
             {pending ? "Guardando…" : "Guardar actividad"}
           </Button>
+          {t.levantado && (
+            <Button variant="secondary" onClick={onValidarTodo} disabled={pending}>
+              Dar por validados los campos llenos
+            </Button>
+          )}
           <button
             type="button"
             onClick={onEliminar}

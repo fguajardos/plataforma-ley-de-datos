@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireSession, sinAccesoAEmpresa } from "@/lib/session";
 import { ROLES } from "@/lib/constants";
-import { CAMPOS_ANALIZABLES, CODIGOS_ESTADO_RAT, claveNombre, type CampoClave } from "@/lib/rat";
+import {
+  CAMPOS_ANALIZABLES,
+  CAMPOS_RAT,
+  CODIGOS_ESTADO_RAT,
+  claveNombre,
+  type CampoClave,
+} from "@/lib/rat";
 import {
   proponerActividades,
   type ActividadPropuesta,
@@ -456,4 +462,125 @@ export async function aceptarComplementos(
   }
   revalidatePath("/diagnosticos", "layout");
   return { ok: true, creados: tocadas };
+}
+
+// ───────────────────── Validación campo por campo ─────────────────────
+
+const CLAVES = CAMPOS_RAT.map((c) => c.clave) as [CampoClave, ...CampoClave[]];
+
+const validarSchema = z.object({
+  tratamientoId: z.string().min(1),
+  campo: z.enum(CLAVES),
+});
+
+/**
+ * Da por bueno un campo del RAT.
+ *
+ * Se guarda el CONTENIDO validado, no solo la marca. Es lo que permite decir después si la
+ * firma sigue correspondiendo: si alguien edita el texto, la validación queda señalada
+ * como desactualizada en vez de seguir acreditando algo que ya no dice eso.
+ *
+ * Un campo vacío no se valida. "Por validar" no es un valor que alguien pueda dar por
+ * bueno: primero se llena, después se firma.
+ */
+export async function validarCampoRat(
+  input: z.input<typeof validarSchema>
+): Promise<RatResult> {
+  const parsed = validarSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+  const { tratamientoId, campo } = parsed.data;
+
+  const t = await prisma.tratamientoDato.findUnique({
+    where: { id: tratamientoId },
+    select: { empresaId: true, ...(Object.fromEntries([[campo, true]]) as Record<string, true>) },
+  });
+  if (!t) return { ok: false, error: "Actividad no encontrada." };
+  const { session, error } = await permiso(t.empresaId);
+  if (error || !session) return { ok: false, error };
+
+  const contenido = (t as unknown as Record<string, unknown>)[campo];
+  if (typeof contenido !== "string" || !contenido.trim()) {
+    return { ok: false, error: "Ese campo está vacío: primero hay que llenarlo." };
+  }
+
+  await prisma.campoRatValidado.upsert({
+    where: { tratamientoId_campo: { tratamientoId, campo } },
+    create: { tratamientoId, campo, contenido, validadoPorId: session.user.id },
+    update: { contenido, validadoPorId: session.user.id, validadoEn: new Date() },
+  });
+
+  revalidatePath("/diagnosticos", "layout");
+  return { ok: true };
+}
+
+/** Quita la validación de un campo: vuelve a estar por validar. */
+export async function quitarValidacionCampoRat(
+  input: z.input<typeof validarSchema>
+): Promise<RatResult> {
+  const parsed = validarSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+  const { tratamientoId, campo } = parsed.data;
+
+  const t = await prisma.tratamientoDato.findUnique({
+    where: { id: tratamientoId },
+    select: { empresaId: true },
+  });
+  if (!t) return { ok: false, error: "Actividad no encontrada." };
+  const { error } = await permiso(t.empresaId);
+  if (error) return { ok: false, error };
+
+  await prisma.campoRatValidado.deleteMany({ where: { tratamientoId, campo } });
+  revalidatePath("/diagnosticos", "layout");
+  return { ok: true };
+}
+
+/**
+ * Valida de una vez todos los campos con contenido de una actividad.
+ *
+ * Solo se ofrece cuando el proceso de esa fila tiene su ficha cargada. Sin levantamiento
+ * detrás, dar veintiséis campos por buenos de un clic es firmar sin haber leído — que es
+ * exactamente lo que un registro de cumplimiento no puede permitir que sea cómodo.
+ */
+export async function validarActividadRat(tratamientoId: string): Promise<RatResult> {
+  const t = await prisma.tratamientoDato.findUnique({
+    where: { id: tratamientoId },
+    select: {
+      empresaId: true,
+      procesoId: true,
+      ...(Object.fromEntries(CAMPOS_RAT.map((c) => [c.clave, true])) as Record<string, true>),
+    },
+  });
+  if (!t) return { ok: false, error: "Actividad no encontrada." };
+  const { session, error } = await permiso(t.empresaId);
+  if (error || !session) return { ok: false, error };
+
+  const conFicha = t.procesoId
+    ? await prisma.fichaProceso.count({ where: { procesoId: t.procesoId } })
+    : 0;
+  if (conFicha === 0) {
+    return {
+      ok: false,
+      error: "El proceso de esta actividad todavía no tiene ficha de levantamiento cargada.",
+    };
+  }
+
+  const registro = t as unknown as Record<string, unknown>;
+  const conContenido = CAMPOS_RAT.map((c) => c.clave).filter((clave) => {
+    const v = registro[clave];
+    return typeof v === "string" && v.trim();
+  });
+  if (conContenido.length === 0) {
+    return { ok: false, error: "No hay ningún campo con contenido para validar." };
+  }
+
+  for (const campo of conContenido) {
+    await prisma.campoRatValidado.upsert({
+      where: { tratamientoId_campo: { tratamientoId, campo } },
+      create: { tratamientoId, campo, contenido: String(registro[campo]), validadoPorId: session.user.id },
+      update: { contenido: String(registro[campo]), validadoPorId: session.user.id, validadoEn: new Date() },
+    });
+  }
+
+  revalidatePath("/diagnosticos", "layout");
+  return { ok: true, creados: conContenido.length };
 }

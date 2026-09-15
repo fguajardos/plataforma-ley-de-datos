@@ -129,6 +129,11 @@ model TratamientoDato {
   // Procesos del mapa de la empresa donde se ejecuta: "S-4.2 Incorporación de Personas".
   // Es texto y no una relación porque una actividad suele cruzar varios procesos.
   procesos      String?
+  // El proceso del mapa al que corresponde la actividad. `procesos` conserva el texto de
+  // la matriz —una actividad puede cruzar varios— y esto engancha el principal, que es
+  // por donde se sabe si el levantamiento de esa fila ya tiene su ficha cargada.
+  procesoId     String?
+  proceso       ProcesoNegocio?  @relation(fields: [procesoId], references: [id], onDelete: SetNull)
   // El área tal como la propone el registro —"Comercial / Marketing"—, que no siempre
   // calza con una de las áreas del levantamiento y a veces abarca dos.
   areaPropuesta String?
@@ -183,7 +188,10 @@ model TratamientoDato {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  camposValidados CampoRatValidado[]
+
   @@unique([empresaId, codigo])
+  @@index([procesoId])
   @@index([empresaId])
 }
 
@@ -245,6 +253,7 @@ model User {
   aportes               AporteRespuesta[]
   aportesCorregidos     AporteRespuesta[]          @relation("aportesCorregidos")
   cargosHomologados     CargoHomologado[]          @relation("cargosHomologados")
+  camposRatValidados    CampoRatValidado[]         @relation("camposRatValidados")
 }
 
 // Registro inmutable de cada aceptación: acredita quién consintió, qué versión
@@ -568,7 +577,8 @@ model ProcesoNegocio {
   codigo String // S-4.2
   nombre String // "Incorporación de Personas"
 
-  fichas FichaProceso[]
+  fichas       FichaProceso[]
+  tratamientos TratamientoDato[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -606,4 +616,31 @@ model CargoHomologado {
 
   @@unique([empresaId, nombre])
   @@index([empresaId])
+}
+
+/// Un campo del RAT dado por bueno por una persona.
+///
+/// La matriz llega con veinte de sus treinta columnas diciendo "Por validar en workshop".
+/// Llenarlas no basta: alguien tiene que decir que lo escrito es correcto, y esa firma es
+/// lo que se pide en una certificación. Sin ella, un campo que llenó el análisis y uno que
+/// confirmó el dueño del proceso se ven idénticos.
+///
+/// Se valida CAMPO por campo y no la fila entera porque así se trabaja: en una sesión se
+/// cierran los plazos de conservación de veinte actividades, no las treinta columnas de
+/// una sola. Y porque editar un campo tiene que poder invalidar solo ese.
+model CampoRatValidado {
+  id            String          @id @default(cuid())
+  tratamientoId String
+  tratamiento   TratamientoDato @relation(fields: [tratamientoId], references: [id], onDelete: Cascade)
+  /// La clave del campo, tal como la nombra `CAMPOS_RAT`: "plazoConservacion".
+  campo         String
+  validadoPorId String?
+  validadoPor   User?           @relation("camposRatValidados", fields: [validadoPorId], references: [id], onDelete: SetNull)
+  validadoEn    DateTime        @default(now())
+  /// El contenido que se dio por bueno. Si el campo cambia después, la validación deja de
+  /// corresponder: una firma sobre un texto que ya no está no acredita nada.
+  contenido     String?
+
+  @@unique([tratamientoId, campo])
+  @@index([tratamientoId])
 }

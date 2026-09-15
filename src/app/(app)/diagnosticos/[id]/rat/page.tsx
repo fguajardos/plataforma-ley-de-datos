@@ -95,7 +95,7 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
       />
 
       {/* ── Estado del registro ── */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-7">
         <Kpi label="Actividades registradas" valor={rat.tratamientos.length} />
         <Kpi
           label="Completas"
@@ -108,6 +108,11 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
           label="Datos en el inventario"
           valor={rat.datosInventariados}
           alerta={rat.datosInventariados === 0}
+        />
+        <Kpi
+          label="Procesos levantados"
+          valor={`${rat.levantados}/${rat.tratamientos.length}`}
+          alerta={rat.levantados < rat.tratamientos.length}
         />
         <Kpi
           label="Áreas sin actividad"

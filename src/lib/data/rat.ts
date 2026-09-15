@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { faltantesDe, type TratamientoPlano } from "@/lib/rat";
+import { faltantesDe, type CampoValidado, type TratamientoPlano } from "@/lib/rat";
 
 // Lectura del RAT desde la base. Lo que el RAT exige y cómo se llama cada campo vive en
 // `@/lib/rat`, sin "server-only", porque el editor lo necesita en el navegador.
@@ -28,6 +28,8 @@ export type RatEmpresa = {
   /** Cuántos datos del inventario están cargados: da o no da vocabulario al análisis. */
   datosInventariados: number;
   procesosMapeados: number;
+  /** Actividades cuyo proceso ya tiene ficha de levantamiento cargada. */
+  levantados: number;
 };
 
 /** Las columnas del registro, en el orden de la matriz. Se lee una sola vez. */
@@ -65,11 +67,47 @@ const SELECT_TRATAMIENTO = {
   fuenteDiseno: true,
   observaciones: true,
   estado: true,
+  procesoId: true,
+  proceso: { select: { codigo: true, nombre: true } },
+  camposValidados: {
+    select: { campo: true, contenido: true, validadoEn: true, validadoPor: { select: { nombre: true } } },
+  },
 } as const;
 
-function aplanar(t: { area: { nombre: string } | null } & Record<string, unknown>): TratamientoPlano {
-  const { area, ...resto } = t;
-  return { ...resto, areaNombre: area?.nombre ?? null } as TratamientoPlano;
+type FilaCruda = {
+  area: { nombre: string } | null;
+  proceso: { codigo: string; nombre: string } | null;
+  camposValidados: {
+    campo: string;
+    contenido: string | null;
+    validadoEn: Date;
+    validadoPor: { nombre: string } | null;
+  }[];
+} & Record<string, unknown>;
+
+function aplanar(t: FilaCruda, conFicha: Set<string>): TratamientoPlano {
+  const { area, proceso, camposValidados, ...resto } = t;
+
+  const validados: Record<string, CampoValidado> = {};
+  for (const v of camposValidados) {
+    // La firma vale sobre el texto que se firmó: si cambió, se dice.
+    const actual = (resto as Record<string, unknown>)[v.campo];
+    const vigente = (typeof actual === "string" ? actual : "") === (v.contenido ?? "");
+    validados[v.campo] = {
+      por: v.validadoPor?.nombre ?? null,
+      en: v.validadoEn.toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }),
+      vigente,
+    };
+  }
+
+  return {
+    ...resto,
+    areaNombre: area?.nombre ?? null,
+    procesoCodigo: proceso?.codigo ?? null,
+    procesoNombre: proceso?.nombre ?? null,
+    levantado: Boolean(resto.procesoId) && conFicha.has(String(resto.procesoId)),
+    validados,
+  } as TratamientoPlano;
 }
 
 export async function ratDeEmpresa(empresaId: string): Promise<RatEmpresa | null> {
@@ -94,7 +132,19 @@ export async function ratDeEmpresa(empresaId: string): Promise<RatEmpresa | null
   });
   if (!empresa) return null;
 
-  const tratamientos = empresa.tratamientos.map(aplanar);
+  // Los procesos que ya tienen su ficha cargada: es lo que permite decir, fila por fila,
+  // si el levantamiento de esa actividad está hecho o sigue pendiente.
+  const conFicha = new Set(
+    (
+      await prisma.fichaProceso.findMany({
+        where: { empresaId, procesoId: { not: null } },
+        select: { procesoId: true },
+        distinct: ["procesoId"],
+      })
+    ).map((f) => f.procesoId!)
+  );
+
+  const tratamientos = empresa.tratamientos.map((t) => aplanar(t as FilaCruda, conFicha));
   const conActividad = new Set(tratamientos.map((t) => t.areaId).filter(Boolean));
 
   return {
@@ -110,6 +160,7 @@ export async function ratDeEmpresa(empresaId: string): Promise<RatEmpresa | null
     conTransferencia: tratamientos.filter((t) => t.transferenciaInternacional).length,
     datosInventariados: empresa._count.inventario,
     procesosMapeados: empresa._count.procesos,
+    levantados: tratamientos.filter((t) => t.levantado).length,
   };
 }
 

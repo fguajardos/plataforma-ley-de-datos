@@ -105,6 +105,16 @@ export const CLASIFICACIONES_DATO = [
   "Potencialmente sensible",
 ] as const;
 
+/**
+ * Un campo dado por bueno.
+ *
+ * `vigente` es lo que hace que la firma signifique algo: si el texto cambió después de
+ * validarlo, la validación ya no corresponde a lo que dice la celda. Se muestra como
+ * "validado, pero el texto cambió" en vez de desaparecer, porque saber que alguien lo dio
+ * por bueno antes es información, no ruido.
+ */
+export type CampoValidado = { por: string | null; en: string; vigente: boolean };
+
 export type TratamientoPlano = {
   id: string;
   codigo: string | null;
@@ -139,6 +149,13 @@ export type TratamientoPlano = {
   fuenteDiseno: string | null;
   observaciones: string | null;
   estado: string;
+  procesoId: string | null;
+  procesoCodigo: string | null;
+  procesoNombre: string | null;
+  /** Su proceso tiene al menos una ficha de levantamiento cargada. */
+  levantado: boolean;
+  /** Campos dados por buenos, por clave de campo. */
+  validados: Record<string, CampoValidado>;
 };
 
 /**
@@ -492,3 +509,21 @@ export function etiquetaEstado(valor: string): string {
  * al que recibe la matriz qué falta— sin engañar a quien mide el avance.
  */
 export const POR_VALIDAR = "Por validar";
+
+/**
+ * Cuántos de los campos que se pueden validar ya lo están, y con la firma vigente.
+ *
+ * Se cuentan solo los que tienen contenido: un campo vacío no se valida, se llena. Medir
+ * sobre el total daría un avance que sube al validar celdas en blanco.
+ */
+export function avanceValidacion(t: TratamientoPlano): { validados: number; conContenido: number } {
+  let validados = 0;
+  let conContenido = 0;
+  for (const c of CAMPOS_RAT) {
+    const v = t[c.clave];
+    if (typeof v !== "string" || !v.trim()) continue;
+    conContenido++;
+    if (t.validados[c.clave]?.vigente) validados++;
+  }
+  return { validados, conContenido };
+}
