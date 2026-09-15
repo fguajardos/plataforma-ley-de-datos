@@ -465,6 +465,38 @@ export function claveNombre(nombre: string): string {
     .trim();
 }
 
+/**
+ * El nombre que pone la plataforma cuando alguien agrega una actividad y no la nombra.
+ *
+ * Existe como constante porque hay que reconocerlo después: una fila con este nombre y sin
+ * nada más es un clic abandonado, no una actividad.
+ */
+export const NOMBRE_SIN_NOMBRAR = /^nueva actividad(\s|$)/i;
+
+/**
+ * ¿Es un cascarón, o sea una fila que alguien creó y nunca llenó?
+ *
+ * Las tres condiciones juntas, y no cualquiera de ellas: sin finalidad, sin proceso Y con
+ * el nombre que pone la plataforma sola. Una fila que alguien SÍ nombró —"Gestión de
+ * reclamos", todavía vacía— no es un cascarón: es trabajo empezado, y tratarla como
+ * descarte haría que el análisis proponga una fila nueva para lo mismo y termine
+ * duplicando justo lo que se quiere evitar.
+ */
+export function esCascaron(t: {
+  nombre: string;
+  finalidad: string | null;
+  procesoId?: string | null;
+}): boolean {
+  return (
+    !t.finalidad?.trim() && !t.procesoId && NOMBRE_SIN_NOMBRAR.test(t.nombre.trim())
+  );
+}
+
+/** Una fila nombrada pero todavía sin finalidad: trabajo empezado, no terminado. */
+export function sinLlenar(t: { finalidad: string | null }): boolean {
+  return !t.finalidad?.trim();
+}
+
 const OBLIGATORIOS = CAMPOS_RAT.filter((c) => c.obligatorio);
 
 /** Campos obligatorios que esta actividad todavía no tiene. */

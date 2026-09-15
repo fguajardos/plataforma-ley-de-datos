@@ -96,7 +96,15 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
 
       {/* ── Estado del registro ── */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-7">
-        <Kpi label="Actividades registradas" valor={rat.tratamientos.length} />
+        <Kpi
+          label="Actividades registradas"
+          valor={
+            rat.sinLlenar > 0
+              ? `${rat.tratamientos.length - rat.sinLlenar} + ${rat.sinLlenar}`
+              : rat.tratamientos.length
+          }
+          alerta={rat.sinLlenar > 0}
+        />
         <Kpi
           label="Completas"
           valor={`${rat.completos}/${rat.tratamientos.length}`}
@@ -149,6 +157,15 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
               </li>
             ))}
           </ul>
+          {rat.sinLlenar > 0 && (
+            <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+              Hay <strong>{rat.sinLlenar}</strong>{" "}
+              {rat.sinLlenar === 1 ? "fila creada y sin llenar" : "filas creadas y sin llenar"}.
+              Se cuentan aparte a propósito: el registro tiene el número de actividades que
+              se definió con criterio, y una fila a medio crear no es una actividad más.
+            </p>
+          )}
+
           <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
             Son {obligatorios.length} campos obligatorios por actividad: los que la Ley 21.719
             exige por cada tratamiento. El resto ordena el trabajo —quién valida la fila, con qué

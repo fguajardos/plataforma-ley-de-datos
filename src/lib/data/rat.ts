@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { faltantesDe, type CampoValidado, type TratamientoPlano } from "@/lib/rat";
+import { faltantesDe, sinLlenar, type CampoValidado, type TratamientoPlano } from "@/lib/rat";
 
 // Lectura del RAT desde la base. Lo que el RAT exige y cómo se llama cada campo vive en
 // `@/lib/rat`, sin "server-only", porque el editor lo necesita en el navegador.
@@ -30,6 +30,8 @@ export type RatEmpresa = {
   procesosMapeados: number;
   /** Actividades cuyo proceso ya tiene ficha de levantamiento cargada. */
   levantados: number;
+  /** Filas creadas y todavía sin finalidad: trabajo empezado que no cuenta como actividad. */
+  sinLlenar: number;
 };
 
 /** Las columnas del registro, en el orden de la matriz. Se lee una sola vez. */
@@ -161,6 +163,7 @@ export async function ratDeEmpresa(empresaId: string): Promise<RatEmpresa | null
     datosInventariados: empresa._count.inventario,
     procesosMapeados: empresa._count.procesos,
     levantados: tratamientos.filter((t) => t.levantado).length,
+    sinLlenar: tratamientos.filter(sinLlenar).length,
   };
 }
 

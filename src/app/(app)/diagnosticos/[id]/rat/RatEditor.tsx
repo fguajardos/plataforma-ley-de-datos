@@ -9,6 +9,7 @@ import {
   ESTADOS_RAT,
   avanceValidacion,
   faltantesDe,
+  sinLlenar,
   type TratamientoPlano,
 } from "@/lib/rat";
 import {
@@ -42,6 +43,7 @@ export function RatEditor({
   const [pending, startTransition] = useTransition();
   const [abierto, setAbierto] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [nuevoNombre, setNuevoNombre] = useState("");
 
   function correr(accion: () => Promise<{ ok: boolean; error?: string; creados?: number }>) {
     setMsg(null);
@@ -70,9 +72,31 @@ export function RatEditor({
           >
             Generar borrador desde las áreas
           </Button>
-          <Button onClick={() => correr(() => crearTratamiento(empresaId))} disabled={pending}>
-            Agregar actividad
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={nuevoNombre}
+              disabled={pending}
+              placeholder="Nombre de la actividad a agregar"
+              aria-label="Nombre de la actividad a agregar"
+              onChange={(e) => setNuevoNombre(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nuevoNombre.trim().length >= 3) {
+                  correr(() => crearTratamiento(empresaId, nuevoNombre));
+                  setNuevoNombre("");
+                }
+              }}
+              className="w-72"
+            />
+            <Button
+              onClick={() => {
+                correr(() => crearTratamiento(empresaId, nuevoNombre));
+                setNuevoNombre("");
+              }}
+              disabled={pending || nuevoNombre.trim().length < 3}
+            >
+              Agregar actividad
+            </Button>
+          </div>
           {msg && (
             <span className={`text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>
               {msg.texto}
@@ -111,6 +135,9 @@ export function RatEditor({
                       )}
                       <span className="text-sm font-medium text-slate-800">{t.nombre}</span>
                       <Badge color={est.color}>{est.label}</Badge>
+                      {sinLlenar(t) && (
+                        <Badge color="slate">Sin llenar</Badge>
+                      )}
                       {t.levantado ? (
                         <Badge color="green">Proceso levantado</Badge>
                       ) : (

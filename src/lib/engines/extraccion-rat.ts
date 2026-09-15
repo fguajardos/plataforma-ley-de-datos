@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { urlFirmadaEvidencia } from "@/lib/storage";
-import { CAMPOS_ANALIZABLES, type CampoClave } from "@/lib/rat";
+import { CAMPOS_ANALIZABLES, esCascaron, type CampoClave } from "@/lib/rat";
 import { analisisLoLee, esOfficeLegible } from "@/lib/documentos";
 import { extraerTexto } from "@/lib/engines/texto-documento";
 
@@ -212,22 +212,29 @@ async function vocabularioDeLaEmpresa(empresaId: string) {
  * bajo otro título.
  */
 async function yaRegistradas(empresaId: string) {
-  return prisma.tratamientoDato.findMany({
-    where: {
-      empresaId,
-      // Las filas vacías quedan fuera de la lista de candidatas. Una fila sin finalidad y
-      // sin proceso es un cascarón que alguien creó y no llenó, y ofrecerla como destino
-      // la convierte en vertedero: el análisis mete ahí lo que no sabe dónde poner, y la
-      // decisión de crecer el registro se toma sola y mal.
-      NOT: { AND: [{ finalidad: null }, { procesoId: null }] },
-    },
+  const filas = await prisma.tratamientoDato.findMany({
+    where: { empresaId },
     // El PROCESO es el criterio más fuerte para saber si un hallazgo cabe en una fila que
     // ya existe: dos actividades del mismo proceso son casi siempre la misma, llamada de
     // dos maneras. El nombre y la finalidad desempatan.
-    select: { codigo: true, nombre: true, finalidad: true, procesos: true, proceso: { select: { codigo: true } } },
+    select: {
+      codigo: true,
+      nombre: true,
+      finalidad: true,
+      procesoId: true,
+      procesos: true,
+      proceso: { select: { codigo: true } },
+    },
     orderBy: [{ codigo: "asc" }, { nombre: "asc" }],
     take: 200,
   });
+
+  // Los cascarones quedan fuera: ofrecer como destino una fila que alguien creó y no
+  // nombró la convierte en vertedero —el análisis mete ahí lo que no sabe dónde poner— y
+  // la decisión de crecer el registro se toma sola y mal. Una fila NOMBRADA aunque esté
+  // vacía sí entra: es trabajo empezado, y excluirla haría que se proponga una fila nueva
+  // para lo mismo.
+  return filas.filter((f) => !esCascaron(f));
 }
 
 /** Las filas del registro que todavía tienen huecos, con el detalle de cuáles. */

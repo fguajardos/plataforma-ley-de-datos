@@ -9,6 +9,7 @@ import {
   CAMPOS_ANALIZABLES,
   CAMPOS_RAT,
   CODIGOS_ESTADO_RAT,
+  NOMBRE_SIN_NOMBRAR,
   claveNombre,
   type CampoClave,
 } from "@/lib/rat";
@@ -199,15 +200,46 @@ export async function guardarTratamiento(
   return { ok: true };
 }
 
-export async function crearTratamiento(empresaId: string): Promise<RatResult> {
+/**
+ * Agrega una actividad al registro. Exige el nombre.
+ *
+ * Antes creaba la fila con un nombre puesto por la plataforma, y un clic por curiosidad
+ * dejaba un cascarón para siempre. Pedir el nombre convierte el botón en una decisión: si
+ * no se sabe cómo se llama la actividad, todavía no hay actividad que registrar.
+ *
+ * Y tiene un efecto que va más allá de la limpieza: el análisis clasifica los hallazgos
+ * contra las filas existentes, y una fila sin nombre real no puede ser destino de nada.
+ */
+export async function crearTratamiento(
+  empresaId: string,
+  nombre: string
+): Promise<RatResult> {
   const { error } = await permiso(empresaId);
   if (error) return { ok: false, error };
 
-  // El código va en el nombre: dos filas llamadas "Nueva actividad de tratamiento" son
-  // indistinguibles en la lista, y quien agregó dos por error no sabe cuál abrir.
-  const codigo = correlativo(await siguienteCorrelativo(empresaId));
+  const limpio = nombre.trim();
+  if (limpio.length < 3) {
+    return { ok: false, error: "Ponle nombre a la actividad: qué se hace con los datos." };
+  }
+  if (NOMBRE_SIN_NOMBRAR.test(limpio)) {
+    return { ok: false, error: "Ese nombre no dice qué actividad es. Usa el nombre real." };
+  }
+
+  const yaExiste = await prisma.tratamientoDato.findMany({
+    where: { empresaId },
+    select: { nombre: true },
+  });
+  if (yaExiste.some((t) => claveNombre(t.nombre) === claveNombre(limpio))) {
+    return { ok: false, error: "Ya hay una actividad con ese nombre en el registro." };
+  }
+
   await prisma.tratamientoDato.create({
-    data: { empresaId, codigo, nombre: `Nueva actividad ${codigo}`, estado: "BORRADOR" },
+    data: {
+      empresaId,
+      codigo: correlativo(await siguienteCorrelativo(empresaId)),
+      nombre: limpio,
+      estado: "BORRADOR",
+    },
   });
   revalidatePath("/diagnosticos", "layout");
   return { ok: true, creados: 1 };
