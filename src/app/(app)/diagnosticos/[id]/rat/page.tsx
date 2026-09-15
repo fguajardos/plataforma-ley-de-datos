@@ -27,7 +27,7 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
   if (!diag) notFound();
   if (sinAccesoAEmpresa(session, diag.empresaId)) notFound();
 
-  const [rat, areas, fichasRaw] = await Promise.all([
+  const [rat, areas, fichasRaw, procesos] = await Promise.all([
     ratDeEmpresa(diag.empresaId),
     prisma.area.findMany({
       where: { empresaId: diag.empresaId },
@@ -45,8 +45,14 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
         subidoPorId: true,
         createdAt: true,
         area: { select: { nombre: true } },
+        proceso: { select: { id: true, codigo: true, nombre: true } },
       },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.procesoNegocio.findMany({
+      where: { empresaId: diag.empresaId },
+      select: { id: true, codigo: true, nombre: true },
+      orderBy: { codigo: "asc" },
     }),
   ]);
   if (!rat) notFound();
@@ -73,6 +79,9 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
     tamano: f.tamano,
     subidoPor: f.subidoPorId ? (autores.get(f.subidoPorId) ?? null) : null,
     createdAt: f.createdAt.toLocaleDateString("es-CL", { day: "numeric", month: "short" }),
+    procesoId: f.proceso?.id ?? null,
+    procesoCodigo: f.proceso?.codigo ?? null,
+    procesoNombre: f.proceso?.nombre ?? null,
   }));
   const obligatorios = CAMPOS_RAT.filter((c) => c.obligatorio);
   const faltantesTotales = rat.tratamientos.reduce((n, t) => n + faltantesDe(t).length, 0);
@@ -185,7 +194,7 @@ export default async function RatPage({ params }: { params: Promise<{ id: string
       {/* Las fichas van antes de la propuesta: son el insumo que la mejora, y verlas
           primero explica por qué el análisis encuentra más cuando hay trabajo de campo. */}
       {esConsultor && (
-        <FichasProceso empresaId={diag.empresaId} fichas={fichas} areas={areas} />
+        <FichasProceso empresaId={diag.empresaId} fichas={fichas} areas={areas} procesos={procesos} />
       )}
 
       {puedeEditar && (

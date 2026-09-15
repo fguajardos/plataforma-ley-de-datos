@@ -6,7 +6,14 @@ import { Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { MAX_EVIDENCIA_MB, MAX_EVIDENCIA_BYTES, MAX_FICHAS_LOTE } from "@/lib/constants";
 import { analisisLoLee, motivoNoLegible } from "@/lib/documentos";
 import { claveNombre } from "@/lib/rat";
-import { prepararSubidaFichas, registrarFichas, eliminarFicha } from "./fichas-actions";
+import {
+  prepararSubidaFichas,
+  registrarFichas,
+  eliminarFicha,
+  analizarFichas,
+  asignarProcesoAFicha,
+  type AnalisisFicha,
+} from "./fichas-actions";
 
 export type FichaVM = {
   id: string;
@@ -17,9 +24,14 @@ export type FichaVM = {
   tamano: number | null;
   subidoPor: string | null;
   createdAt: string;
+  /** El proceso del mapa que describe, detectado del archivo o corregido a mano. */
+  procesoId: string | null;
+  procesoCodigo: string | null;
+  procesoNombre: string | null;
 };
 
 type Area = { id: string; nombre: string };
+export type ProcesoVM = { id: string; codigo: string; nombre: string };
 
 /** Cuántos archivos viajan a Storage a la vez. */
 const EN_PARALELO = 3;
@@ -84,10 +96,12 @@ export function FichasProceso({
   empresaId,
   fichas,
   areas,
+  procesos,
 }: {
   empresaId: string;
   fichas: FichaVM[];
   areas: Area[];
+  procesos: ProcesoVM[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -96,6 +110,7 @@ export function FichasProceso({
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [cola, setCola] = useState<EnCola[]>([]);
   const [comun, setComun] = useState({ descripcion: "", areaId: "" });
+  const [analisis, setAnalisis] = useState<AnalisisFicha[]>([]);
   const archivoRef = useRef<HTMLInputElement>(null);
 
   function elegir(files: FileList | null) {
@@ -213,7 +228,21 @@ export function FichasProceso({
         ok: true,
         texto:
           `${reg.creadas} ${reg.creadas === 1 ? "ficha cargada" : "fichas cargadas"}.` +
-          (fallidas > 0 ? ` ${fallidas} quedaron sin subir: revisa el detalle.` : ""),
+          (fallidas > 0 ? ` ${fallidas} quedaron sin subir: revisa el detalle.` : "") +
+          " Leyendo el proceso de cada una…",
+      });
+
+      // El análisis va después de guardar: si falla, las fichas ya están a salvo y lo
+      // único que queda pendiente es enganchar el proceso, que se puede hacer a mano.
+      const leidas = await analizarFichas(reg.ids ?? []);
+      setAnalisis(leidas);
+      const enganchadas = leidas.filter((l) => l.proceso).length;
+      setMsg({
+        ok: true,
+        texto:
+          `${reg.creadas} ${reg.creadas === 1 ? "ficha cargada" : "fichas cargadas"}. ` +
+          `${enganchadas} de ${leidas.length} quedaron enganchadas con su proceso.` +
+          (fallidas > 0 ? ` ${fallidas} archivos quedaron sin subir.` : ""),
       });
       if (fallidas === 0) {
         limpiar();
@@ -235,6 +264,15 @@ export function FichasProceso({
       const res = await eliminarFicha(id);
       if (res.ok) router.refresh();
       else setMsg({ ok: false, texto: res.error ?? "No se pudo eliminar." });
+    });
+  }
+
+  function cambiarProceso(fichaId: string, procesoId: string) {
+    setMsg(null);
+    startTransition(async () => {
+      const res = await asignarProcesoAFicha(fichaId, procesoId || null);
+      if (res.ok) router.refresh();
+      else setMsg({ ok: false, texto: res.error ?? "No se pudo asignar el proceso." });
     });
   }
 
@@ -263,6 +301,32 @@ export function FichasProceso({
 
       {msg && (
         <p className={`mt-3 text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.texto}</p>
+      )}
+
+      {analisis.length > 0 && (
+        <ul className="mt-3 space-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+          {analisis.map((a) => (
+            <li key={a.id} className="text-slate-600">
+              <strong className="text-slate-800">{a.nombre}</strong>{" "}
+              {a.proceso ? (
+                <>
+                  → <span className="font-mono">{a.proceso}</span> {a.procesoNombre}
+                  {a.confianza !== "alta" && (
+                    <span className="text-orange-700"> · confianza {a.confianza} ({a.origen}), conviene revisarlo</span>
+                  )}
+                  {a.roles > 0 && <span className="text-slate-400"> · {a.roles} roles en la RECI</span>}
+                </>
+              ) : a.procesoDesconocido ? (
+                <span className="text-orange-700">
+                  → dice ser <span className="font-mono">{a.procesoDesconocido}</span>, que no está en
+                  el mapa de procesos de la empresa
+                </span>
+              ) : (
+                <span className="text-slate-500">→ no se pudo identificar el proceso{a.error ? `: ${a.error}` : ""}</span>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
 
       {abrir && (
@@ -415,6 +479,23 @@ export function FichasProceso({
                   {f.areaNombre ?? "Sin área"} · {peso(f.tamano)}
                   {f.subidoPor && ` · subió ${f.subidoPor}`} · {f.createdAt}
                 </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500">Proceso:</span>
+                  <Select
+                    value={f.procesoId ?? ""}
+                    disabled={pending || subiendo}
+                    aria-label={`Proceso de ${f.nombre}`}
+                    onChange={(e) => cambiarProceso(f.id, e.target.value)}
+                    className="h-8 max-w-sm py-0 text-xs"
+                  >
+                    <option value="">Sin proceso asignado</option>
+                    {procesos.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.codigo} · {p.nombre}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
                 {f.descripcion && (
                   <p className="mt-0.5 text-xs text-slate-500">{f.descripcion}</p>
                 )}

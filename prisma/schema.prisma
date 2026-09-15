@@ -43,6 +43,7 @@ model Empresa {
   fichas       FichaProceso[]
   inventario   DatoInventario[]
   procesos     ProcesoNegocio[]
+  cargos       CargoHomologado[]
 }
 
 model Area {
@@ -61,6 +62,7 @@ model Area {
   dominios     DiagnosticoDominio[]
   tratamientos TratamientoDato[]
   fichas       FichaProceso[]
+  cargos       CargoHomologado[]
 }
 
 // Ficha de proceso levantada por el equipo consultor.
@@ -74,20 +76,32 @@ model Area {
 // Cuelga de la empresa, como el RAT: describe como opera la organizacion y sobrevive al
 // diagnostico que la levanto.
 model FichaProceso {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   empresaId   String
-  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa     Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   areaId      String?
-  area        Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  area        Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
   nombre      String
   descripcion String?
   archivoPath String?
   mimeType    String?
   tamano      Int?
   subidoPorId String?
-  createdAt   DateTime @default(now())
+
+  // El proceso del mapa que describe la ficha. Se detecta del propio archivo —la hoja
+  // SIPOC declara "Nombre del proceso: S-3.6 Cuentas por Pagar" y el nombre del archivo
+  // repite el código— y queda confirmable a mano, porque una detección que no se puede
+  // corregir es peor que ninguna.
+  procesoId   String?
+  proceso     ProcesoNegocio? @relation(fields: [procesoId], references: [id], onDelete: SetNull)
+  /// Los roles que aparecen en la matriz RECI de la ficha, uno por línea, tal como están
+  /// escritos ahí. Es el material que alimenta la homologación de cargos.
+  rolesCrudos String?
+
+  createdAt DateTime @default(now())
 
   @@index([empresaId])
+  @@index([procesoId])
 }
 
 // Registro de Actividades de Tratamiento (RAT).
@@ -119,6 +133,10 @@ model TratamientoDato {
   // calza con una de las áreas del levantamiento y a veces abarca dos.
   areaPropuesta String?
   duenoProceso  String? // dueño del proceso o Key User que puede validar la fila
+  // El cargo homologado, cuando se pudo identificar. `duenoProceso` conserva el texto tal
+  // como vino de la ficha: el enlace dice a quién corresponde, el texto dice qué se leyó.
+  duenoCargoId  String?
+  duenoCargo    CargoHomologado? @relation(fields: [duenoCargoId], references: [id], onDelete: SetNull)
   finalidad     String?
 
   categoriasTitulares String? // clientes, trabajadores, postulantes, proveedores
@@ -226,6 +244,7 @@ model User {
   aceptaciones          AceptacionConsentimiento[]
   aportes               AporteRespuesta[]
   aportesCorregidos     AporteRespuesta[]          @relation("aportesCorregidos")
+  cargosHomologados     CargoHomologado[]          @relation("cargosHomologados")
 }
 
 // Registro inmutable de cada aceptación: acredita quién consintió, qué versión
@@ -549,6 +568,42 @@ model ProcesoNegocio {
   codigo String // S-4.2
   nombre String // "Incorporación de Personas"
 
+  fichas FichaProceso[]
+
   @@unique([empresaId, codigo])
+  @@index([empresaId])
+}
+
+/// Cargo homologado: un nombre único para lo que la organización llama de varias maneras.
+///
+/// El mismo rol llega escrito de tres formas distintas —"Compras C. Guzmán" en la matriz
+/// RECI de una ficha, "Encargada de Compra" en la cuenta de la plataforma, "Compras" como
+/// área del levantamiento— y sin unificarlo el RAT declara tres dueños donde hay uno. Un
+/// registro que no puede decir quién responde por un tratamiento no sirve para responder.
+///
+/// Las variantes se conservan: homologar es elegir un nombre preferido, no borrar los
+/// otros. Cuando alguien pregunte por qué el RAT dice "Encargada de Compras" donde la
+/// ficha decía otra cosa, la respuesta tiene que estar guardada.
+model CargoHomologado {
+  id        String  @id @default(cuid())
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  nombre String // el canónico: "Encargada de Compras"
+  areaId String?
+  area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  // La persona, cuando el cargo es de una sola. Muchos cargos no lo son.
+  userId String?
+  user   User?   @relation("cargosHomologados", fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Cómo aparece escrito en otras partes, una forma por línea.
+  variantes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tratamientos TratamientoDato[]
+
+  @@unique([empresaId, nombre])
   @@index([empresaId])
 }
